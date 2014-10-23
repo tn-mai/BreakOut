@@ -6,6 +6,7 @@ module App
 where
 
 import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
+import Graphics.Rendering.OpenGL.Raw as GLRaw
 import System.IO
 
 -- | Create the OpenGL window.
@@ -34,6 +35,11 @@ create windowTitle width height = do
         GLFW.makeContextCurrent $ Just window
         GLFW.swapInterval 1
         GLFW.setStickyKeysInputMode window GLFW.StickyKeysInputMode'Enabled
+
+        GLRaw.glEnable gl_CULL_FACE
+        GLRaw.glCullFace gl_BACK
+        GLRaw.glFrontFace gl_CW
+
         return $ Just window
 
 -- | Destroy the OpenGL window.

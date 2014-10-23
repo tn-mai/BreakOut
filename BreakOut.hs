@@ -14,6 +14,7 @@ import Control.Monad
 import Control.Concurrent (threadDelay)
 import System.Environment
 import System.Exit
+import Foreign.C.Types
 
 main :: IO ()
 main = do
@@ -74,11 +75,10 @@ display mesh = do
   clear [ColorBuffer, DepthBuffer]
 
   Mesh.draw mesh (mvpMatrix V.identity)
-{--
+
   -- translation test.
   let v2 = 2 :. 0 :. 0 :. () :: Vec3 CFloat
       m2 = V.translate v2 (V.identity :: Mat44 CFloat)
   Mesh.draw mesh (mvpMatrix m2)
---}
 
   flush

@@ -97,7 +97,7 @@ create vertices indices = do
     , vertexBuffer = vb
     , indexBuffer = ib
     , indicesOffset = 0
-    , numArrayIndices = fromIntegral $ length indices 
+    , numArrayIndices = fromIntegral $ length indices
     , program = program
     , mvpUniformLocation = mvpLocation
     }
@@ -105,11 +105,15 @@ create vertices indices = do
 -- | Draw the object.
 draw :: (Storable a) => Object -> a -> IO ()
 draw obj mat = do
+  currentProgram $= Just (program obj)
   bindVertexArrayObject $= Just (vao obj)
+
   let (UniformLocation mvpLocation) = mvpUniformLocation obj
-  with mat $ (glUniformMatrix4fv (fromIntegral mvpLocation) 1 (fromBool True)) . castPtr
+  with mat $ glUniformMatrix4fv (fromIntegral mvpLocation) 1 (fromBool True) . castPtr
   drawElements Triangles (numArrayIndices obj) UnsignedShort (bufferOffset $ indicesOffset obj) 
+
   bindVertexArrayObject $= Nothing
+  currentProgram $= Nothing
   return ()
 
 -- | Destroy the object.

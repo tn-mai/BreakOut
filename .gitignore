@@ -1,0 +1,6 @@
+*.hi
+*.o
+*.exe
+ghc
+ghci
+cabal.sandbox.config

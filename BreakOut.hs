@@ -9,6 +9,7 @@ import qualified Mesh as Mesh
 import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
 import Graphics.Rendering.OpenGL
 import Data.Maybe (isNothing, fromJust)
+import Data.IORef
 import Data.Vec as V
 import Control.Monad
 import Control.Concurrent (threadDelay)
@@ -79,22 +80,48 @@ main = do
         ,18,17,16,16,19,18
         ,22,21,20,20,23,22
         ] :: [GLushort]
-  mesh0 <- Mesh.create vertices0 indices0
+  mesh0 <- Mesh.create (Prelude.map (*20) vertices0) indices0
   renderingLoop (fromJust r) mesh0
   Mesh.destroy mesh0
   App.destroy (fromJust r)
+
+data Position = Position GLfloat GLfloat GLfloat
   
 renderingLoop :: GLFW.Window -> Mesh.Object -> IO ()
 renderingLoop window mesh = do
-  loop
+  cameraTarget <- newIORef $ Main.Position 40 30 30
+  loop cameraTarget
   where
-    loop = (GLFW.windowShouldClose window) >>= (flip unless) go
-    go = do
-      display mesh
+    loop ct = (GLFW.windowShouldClose window) >>= (flip unless) (go ct)
+    go ct = do
+      display ct mesh
       GLFW.swapBuffers window
       GLFW.pollEvents
-      threadDelay 10000
-      loop
+
+      keyStateW <- GLFW.getKey window GLFW.Key'W
+      when (keyStateW == GLFW.KeyState'Pressed) $ do
+        (Main.Position x y z) <- readIORef ct
+        writeIORef ct $ Main.Position x y (z + 0.2)
+
+      keyStateA <- GLFW.getKey window GLFW.Key'A
+      when (keyStateA == GLFW.KeyState'Pressed) $ do
+        (Main.Position x y z) <- readIORef ct
+        writeIORef ct $ Main.Position (x - 0.2) y z
+
+      keyStateS <- GLFW.getKey window GLFW.Key'S
+      when (keyStateS == GLFW.KeyState'Pressed) $ do
+        (Main.Position x y z) <- readIORef ct
+        writeIORef ct $ Main.Position x y (z - 0.2)
+
+      keyStateD <- GLFW.getKey window GLFW.Key'D
+      when (keyStateD == GLFW.KeyState'Pressed) $ do
+        (Main.Position x y z) <- readIORef ct
+        writeIORef ct $ Main.Position (x + 0.2) y z
+
+      isExit <- GLFW.getKey window GLFW.Key'Escape
+      when (isExit /= GLFW.KeyState'Pressed) $ do
+        threadDelay 10000
+        loop ct
 
 vec3 :: forall a a1 a2. a -> a1 -> a2 -> a :. (a1 :. (a2 :. ()))
 vec3 x y z = x :. y :. z :. ()
@@ -124,20 +151,20 @@ lookAt eye target up = x :. y :. z :. h :. ()
     z = V.snoc (-forward) (V.dot forward eye)
     h = 0 :. 0 :. 0 :. 1 :. ()
 
-display :: Mesh.Object -> IO ()
-display mesh = do
+display :: IORef Main.Position -> Mesh.Object -> IO ()
+display cameraTarget mesh = do
   clearColor $= Color4 0.1 0.4 0.2 1
   clear [ColorBuffer, DepthBuffer]
 
   (Main.Position x y z) <- readIORef cameraTarget
-  let [mvp, mv, n] = calcMatrix (vec3 4 3 3) V.identity
+  let [mvp, mv, n] = calcMatrix (vec3 x y z) V.identity
 
   Mesh.draw mesh mvp mv n
 
   -- translation test.
-  let v2 = 2 :. 0 :. 0 :. () :: Vec3 CFloat
+  let v2 = 20 :. 0 :. 0 :. () :: Vec3 CFloat
       m2 = V.translate v2 (V.identity :: Mat44 CFloat)
-  let [mvp', mv', n'] = calcMatrix (vec3 4 3 3) m2
+  let [mvp', mv', n'] = calcMatrix (vec3 x y z) m2
   Mesh.draw mesh mvp' mv' n'
 
   flush

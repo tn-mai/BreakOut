@@ -89,21 +89,24 @@ data Camera = Camera
   { pos :: Vec3 GLfloat
   , target :: Vec3 GLfloat
   , up :: Vec3 GLfloat
+  , cur :: (Double, Double) -- for mouse movement.
   }
 
 renderingLoop :: GLFW.Window -> Mesh.Object -> IO ()
 renderingLoop window mesh = do
   GLFW.setCursorInputMode window GLFW.CursorInputMode'Disabled
+  curPos <- GLFW.getCursorPos window
   camera <- newIORef $ Main.Camera
     { pos = vec3 40 30 30
     , target = vec3 0 0 0
     , up = vec3 0 1 0
+    , cur = curPos
     }
   loop camera
   where
-    keyAction key action = do
+    keyAction key taction faction = do
       keyState <- GLFW.getKey window key
-      when (keyState == GLFW.KeyState'Pressed) $ action
+      if (keyState == GLFW.KeyState'Pressed) then taction else faction
 
     loop camera = (GLFW.windowShouldClose window) >>= (flip unless) (go camera)
     go camera = do
@@ -112,20 +115,28 @@ renderingLoop window mesh = do
       GLFW.pollEvents
 
       c <- readIORef camera
-      let frontVector = V.normalize $ (target c) - (pos c)
-          rotM = V.rotationVec (up c) (0.5 * pi)
-          cv4 = V.snoc frontVector 1
-          leftVector = V.take n3 (V.multmv rotM cv4)
+      let zeroVector = vec3 0 0 0
+      let targetDistance = (target c) - (pos c)
+          frontVector = V.normalize targetDistance
+          leftVector = V.cross (up c) frontVector
 
-      keyAction GLFW.Key'W $ do
-        writeIORef camera $ c { pos = (pos c) - frontVector }
-      keyAction GLFW.Key'A $ do
-        writeIORef camera $ c { pos = (pos c) + leftVector }
-      keyAction GLFW.Key'S $ do
-        writeIORef camera $ c { pos = (pos c) + frontVector }
-      keyAction GLFW.Key'D $ do
-        writeIORef camera $ c { pos = (pos c) - leftVector }
+      mw <- keyAction GLFW.Key'W (return frontVector) (return zeroVector)
+      ma <- keyAction GLFW.Key'A (return leftVector) (return zeroVector)
+      ms <- keyAction GLFW.Key'S (return (-frontVector)) (return zeroVector)
+      md <- keyAction GLFW.Key'D (return (-leftVector)) (return zeroVector)
 
+      (newX, newY) <- GLFW.getCursorPos window
+      let (prevX, prevY) = cur c
+          rotH = V.rotationVec (up c) $ realToFrac ((newX - prevX) * 0.001 * (-pi) )
+          rotV = V.rotationVec leftVector $ realToFrac ((prevY - newY) * 0.001 * (-pi))
+          newTarget = V.take n3 (V.multmv rotH (V.multmv rotV (V.snoc targetDistance 1)))
+
+      let movement = mw + ma + ms + md
+      writeIORef camera $ c
+        { pos = (pos c) + movement
+        , target = newTarget + (pos c) + movement
+        , cur = (newX, newY)
+        }
       isExit <- GLFW.getKey window GLFW.Key'Escape
       when (isExit /= GLFW.KeyState'Pressed) $ do
         threadDelay 10000
@@ -138,11 +149,11 @@ instance NearZero CFloat where
   nearZero 0 = True
   nearZero _ = False
 
-calcMatrix :: Vec3 GLfloat -> Mat44 GLfloat -> [Mat44 GLfloat]
-calcMatrix ct modelMatrix =
+calcMatrix :: Camera -> Mat44 GLfloat -> [Mat44 GLfloat]
+calcMatrix c modelMatrix =
   [mvp, mv, n]
   where
-    viewMatrix = Main.lookAt ct (vec3 0 0 0) (vec3 0 1 0)
+    viewMatrix = Main.lookAt (pos c) (target c) (up c)
     projMatrix = (V.perspective 0.1 100 (pi / 4) (4 / 3)) :: Mat44 GLfloat
     mv = V.multmm viewMatrix modelMatrix
     mvp = V.multmm projMatrix mv
@@ -165,14 +176,14 @@ display camera mesh = do
   clear [ColorBuffer, DepthBuffer]
 
   c <- readIORef camera
-  let [mvp, mv, n] = calcMatrix (pos c) V.identity
+  let [mvp, mv, n] = calcMatrix c V.identity
 
   Mesh.draw mesh mvp mv n
 
   -- translation test.
   let v2 = 20 :. 0 :. 0 :. () :: Vec3 CFloat
       m2 = V.translate v2 (V.identity :: Mat44 CFloat)
-  let [mvp', mv', n'] = calcMatrix (pos c) m2
+  let [mvp', mv', n'] = calcMatrix c m2
   Mesh.draw mesh mvp' mv' n'
 
   flush

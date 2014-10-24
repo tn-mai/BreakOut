@@ -85,43 +85,51 @@ main = do
   Mesh.destroy mesh0
   App.destroy (fromJust r)
 
-data Position = Position GLfloat GLfloat GLfloat
-  
+data Camera = Camera
+  { pos :: Vec3 GLfloat
+  , target :: Vec3 GLfloat
+  , up :: Vec3 GLfloat
+  }
+
 renderingLoop :: GLFW.Window -> Mesh.Object -> IO ()
 renderingLoop window mesh = do
-  cameraTarget <- newIORef $ Main.Position 40 30 30
-  loop cameraTarget
+  GLFW.setCursorInputMode window GLFW.CursorInputMode'Disabled
+  camera <- newIORef $ Main.Camera
+    { pos = vec3 40 30 30
+    , target = vec3 0 0 0
+    , up = vec3 0 1 0
+    }
+  loop camera
   where
-    loop ct = (GLFW.windowShouldClose window) >>= (flip unless) (go ct)
-    go ct = do
-      display ct mesh
+    keyAction key action = do
+      keyState <- GLFW.getKey window key
+      when (keyState == GLFW.KeyState'Pressed) $ action
+
+    loop camera = (GLFW.windowShouldClose window) >>= (flip unless) (go camera)
+    go camera = do
+      display camera mesh
       GLFW.swapBuffers window
       GLFW.pollEvents
 
-      keyStateW <- GLFW.getKey window GLFW.Key'W
-      when (keyStateW == GLFW.KeyState'Pressed) $ do
-        (Main.Position x y z) <- readIORef ct
-        writeIORef ct $ Main.Position x y (z + 0.2)
+      c <- readIORef camera
+      let frontVector = V.normalize $ (target c) - (pos c)
+          rotM = V.rotationVec (up c) (0.5 * pi)
+          cv4 = V.snoc frontVector 1
+          leftVector = V.take n3 (V.multmv rotM cv4)
 
-      keyStateA <- GLFW.getKey window GLFW.Key'A
-      when (keyStateA == GLFW.KeyState'Pressed) $ do
-        (Main.Position x y z) <- readIORef ct
-        writeIORef ct $ Main.Position (x - 0.2) y z
-
-      keyStateS <- GLFW.getKey window GLFW.Key'S
-      when (keyStateS == GLFW.KeyState'Pressed) $ do
-        (Main.Position x y z) <- readIORef ct
-        writeIORef ct $ Main.Position x y (z - 0.2)
-
-      keyStateD <- GLFW.getKey window GLFW.Key'D
-      when (keyStateD == GLFW.KeyState'Pressed) $ do
-        (Main.Position x y z) <- readIORef ct
-        writeIORef ct $ Main.Position (x + 0.2) y z
+      keyAction GLFW.Key'W $ do
+        writeIORef camera $ c { pos = (pos c) - frontVector }
+      keyAction GLFW.Key'A $ do
+        writeIORef camera $ c { pos = (pos c) + leftVector }
+      keyAction GLFW.Key'S $ do
+        writeIORef camera $ c { pos = (pos c) + frontVector }
+      keyAction GLFW.Key'D $ do
+        writeIORef camera $ c { pos = (pos c) - leftVector }
 
       isExit <- GLFW.getKey window GLFW.Key'Escape
       when (isExit /= GLFW.KeyState'Pressed) $ do
         threadDelay 10000
-        loop ct
+        loop camera
 
 vec3 :: forall a a1 a2. a -> a1 -> a2 -> a :. (a1 :. (a2 :. ()))
 vec3 x y z = x :. y :. z :. ()
@@ -151,20 +159,20 @@ lookAt eye target up = x :. y :. z :. h :. ()
     z = V.snoc (-forward) (V.dot forward eye)
     h = 0 :. 0 :. 0 :. 1 :. ()
 
-display :: IORef Main.Position -> Mesh.Object -> IO ()
-display cameraTarget mesh = do
+display :: IORef Camera -> Mesh.Object -> IO ()
+display camera mesh = do
   clearColor $= Color4 0.1 0.4 0.2 1
   clear [ColorBuffer, DepthBuffer]
 
-  (Main.Position x y z) <- readIORef cameraTarget
-  let [mvp, mv, n] = calcMatrix (vec3 x y z) V.identity
+  c <- readIORef camera
+  let [mvp, mv, n] = calcMatrix (pos c) V.identity
 
   Mesh.draw mesh mvp mv n
 
   -- translation test.
   let v2 = 20 :. 0 :. 0 :. () :: Vec3 CFloat
       m2 = V.translate v2 (V.identity :: Mat44 CFloat)
-  let [mvp', mv', n'] = calcMatrix (vec3 x y z) m2
+  let [mvp', mv', n'] = calcMatrix (pos c) m2
   Mesh.draw mesh mvp' mv' n'
 
   flush

@@ -24,7 +24,8 @@ data Object = Object
   , indicesOffset :: ArrayIndex
   , numArrayIndices :: NumArrayIndices
   , program :: Program
-  , mvpUniformLocation :: UniformLocation
+  , mvpUniformLocation :: UniformLocation -- | Model-View-Projection matrix.
+  , mUniformLocation :: UniformLocation -- | Model matrix(for lighting).
   }
 
 -- | Get the pointer of buffer from the offset.
@@ -92,6 +93,7 @@ create vertices indices = do
     , Shader.Info FragmentShader (Shader.FileSource "shaders/default.frag")
     ]
   mvpLocation <- get $ uniformLocation program "MVP"
+  mLocation <- get $ uniformLocation program "M"
   return Object
     { vao = vao
     , vertexBuffer = vb
@@ -100,16 +102,19 @@ create vertices indices = do
     , numArrayIndices = fromIntegral $ length indices
     , program = program
     , mvpUniformLocation = mvpLocation
+    , mUniformLocation = mLocation
     }
 
 -- | Draw the object.
-draw :: (Storable a) => Object -> a -> IO ()
-draw obj mat = do
+draw :: (Storable a) => Object -> a -> a -> IO ()
+draw obj mvp m = do
   currentProgram $= Just (program obj)
   bindVertexArrayObject $= Just (vao obj)
 
   let (UniformLocation mvpLocation) = mvpUniformLocation obj
-  with mat $ glUniformMatrix4fv (fromIntegral mvpLocation) 1 (fromBool True) . castPtr
+  let (UniformLocation mLocation) = mUniformLocation obj
+  with mvp $ glUniformMatrix4fv (fromIntegral mvpLocation) 1 (fromBool True) . castPtr
+  with m $ glUniformMatrix4fv (fromIntegral mLocation) 1 (fromBool True) . castPtr
   drawElements Triangles (numArrayIndices obj) UnsignedShort (bufferOffset $ indicesOffset obj) 
 
   bindVertexArrayObject $= Nothing

@@ -121,11 +121,11 @@ display mesh = do
   clearColor $= Color4 0.1 0.4 0.2 1
   clear [ColorBuffer, DepthBuffer]
 
-  Mesh.draw mesh (mvpMatrix V.identity)
+  Mesh.draw mesh (mvpMatrix V.identity) V.identity
 
   -- translation test.
   let v2 = 2 :. 0 :. 0 :. () :: Vec3 CFloat
       m2 = V.translate v2 (V.identity :: Mat44 CFloat)
-  Mesh.draw mesh (mvpMatrix m2)
+  Mesh.draw mesh (mvpMatrix m2) m2
 
   flush

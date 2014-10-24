@@ -25,7 +25,8 @@ data Object = Object
   , numArrayIndices :: NumArrayIndices
   , program :: Program
   , mvpUniformLocation :: UniformLocation -- | Model-View-Projection matrix.
-  , mUniformLocation :: UniformLocation -- | Model matrix(for lighting).
+  , mvUniformLocation :: UniformLocation -- | Model-View matrix(for lighting).
+  , normalUniformLocation :: UniformLocation -- | Normal matrix(for lighting).
   }
 
 -- | Get the pointer of buffer from the offset.
@@ -93,7 +94,8 @@ create vertices indices = do
     , Shader.Info FragmentShader (Shader.FileSource "shaders/default.frag")
     ]
   mvpLocation <- get $ uniformLocation program "MVP"
-  mLocation <- get $ uniformLocation program "M"
+  mvLocation <- get $ uniformLocation program "MV"
+  normalLocation <- get $ uniformLocation program "N"
   return Object
     { vao = vao
     , vertexBuffer = vb
@@ -102,19 +104,22 @@ create vertices indices = do
     , numArrayIndices = fromIntegral $ length indices
     , program = program
     , mvpUniformLocation = mvpLocation
-    , mUniformLocation = mLocation
+    , mvUniformLocation = mvLocation
+    , normalUniformLocation = normalLocation
     }
 
 -- | Draw the object.
-draw :: (Storable a) => Object -> a -> a -> IO ()
-draw obj mvp m = do
+draw :: (Storable a) => Object -> a -> a -> a -> IO ()
+draw obj mvp mv normal = do
   currentProgram $= Just (program obj)
   bindVertexArrayObject $= Just (vao obj)
 
   let (UniformLocation mvpLocation) = mvpUniformLocation obj
-  let (UniformLocation mLocation) = mUniformLocation obj
+  let (UniformLocation mvLocation) = mvUniformLocation obj
+  let (UniformLocation normalLocation) = normalUniformLocation obj
   with mvp $ glUniformMatrix4fv (fromIntegral mvpLocation) 1 (fromBool True) . castPtr
-  with m $ glUniformMatrix4fv (fromIntegral mLocation) 1 (fromBool True) . castPtr
+  with mv $ glUniformMatrix4fv (fromIntegral mvLocation) 1 (fromBool True) . castPtr
+  with normal $ glUniformMatrix4fv (fromIntegral normalLocation) 1 (fromBool True) . castPtr
   drawElements Triangles (numArrayIndices obj) UnsignedShort (bufferOffset $ indicesOffset obj) 
 
   bindVertexArrayObject $= Nothing

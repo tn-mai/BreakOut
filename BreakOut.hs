@@ -99,11 +99,19 @@ renderingLoop window mesh = do
 vec3 :: forall a a1 a2. a -> a1 -> a2 -> a :. (a1 :. (a2 :. ()))
 vec3 x y z = x :. y :. z :. ()
 
-mvpMatrix :: Mat44 GLfloat -> Mat44 GLfloat
-mvpMatrix model = V.multmm (V.multmm projection view) model
+instance NearZero CFloat where
+  nearZero 0 = True
+  nearZero _ = False
+
+calcMatrix :: Vec3 GLfloat -> Mat44 GLfloat -> [Mat44 GLfloat]
+calcMatrix ct modelMatrix =
+  [mvp, mv, n]
   where
-    projection = V.perspective 0.1 100 (pi / 4) (4 / 3)
-    view = Main.lookAt (vec3 4 3 3) (vec3 0 0 0) (vec3 0 1 0)
+    viewMatrix = Main.lookAt ct (vec3 0 0 0) (vec3 0 1 0)
+    projMatrix = (V.perspective 0.1 100 (pi / 4) (4 / 3)) :: Mat44 GLfloat
+    mv = V.multmm viewMatrix modelMatrix
+    mvp = V.multmm projMatrix mv
+    n = V.transpose (fromJust (V.invert mv))
 
 lookAt :: Floating a => Vec3 a -> Vec3 a -> Vec3 a -> Mat44 a
 lookAt eye target up = x :. y :. z :. h :. ()
@@ -121,11 +129,15 @@ display mesh = do
   clearColor $= Color4 0.1 0.4 0.2 1
   clear [ColorBuffer, DepthBuffer]
 
-  Mesh.draw mesh (mvpMatrix V.identity) V.identity
+  (Main.Position x y z) <- readIORef cameraTarget
+  let [mvp, mv, n] = calcMatrix (vec3 4 3 3) V.identity
+
+  Mesh.draw mesh mvp mv n
 
   -- translation test.
   let v2 = 2 :. 0 :. 0 :. () :: Vec3 CFloat
       m2 = V.translate v2 (V.identity :: Mat44 CFloat)
-  Mesh.draw mesh (mvpMatrix m2) m2
+  let [mvp', mv', n'] = calcMatrix (vec3 4 3 3) m2
+  Mesh.draw mesh mvp' mv' n'
 
   flush

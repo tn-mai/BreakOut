@@ -16,16 +16,17 @@ layout(location = 1) in vec3 vNormal;
 layout(location = 2) in vec4 vColor;
 
 uniform mat4 MVP;
-uniform mat4 M;
+uniform mat4 MV;
+uniform mat4 N;
 
-out vec4 col;
-out vec3 normal;
-out vec3 pos;
+smooth out vec4 col;
+smooth out vec3 normal;
+smooth out vec3 pos;
 
 void main()
 {
   col = vColor;
-  normal = normalize(M * vec4(vNormal, 1)).xyz;
-  pos = (M * vec4(vPosition, 1)).xyz;
+  normal = normalize(N * vec4(vNormal, 1)).xyz;
+  pos = (MV * vec4(vPosition, 1)).xyz;
   gl_Position = MVP * vec4(vPosition, 1);
 }

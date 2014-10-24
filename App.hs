@@ -40,6 +40,9 @@ create windowTitle width height = do
         GLRaw.glCullFace gl_BACK
         GLRaw.glFrontFace gl_CW
 
+        GLRaw.glEnable gl_DEPTH_TEST
+        GLRaw.glDepthFunc gl_LESS
+
         return $ Just window
 
 -- | Destroy the OpenGL window.

@@ -151,13 +151,16 @@ draw obj mvp mv normalMatrix s = do
   glUniform1f (fromIntegral shineLocation) s
 
   alloca $ \ptr -> do
+    let bufferId = 7
     glGenBuffers 1 ptr
     buffer <- peek ptr
-    glBindBufferBase gl_UNIFORM_BUFFER 7 buffer
+    glBindBuffer gl_UNIFORM_BUFFER buffer
     with lightSource $ \ls -> do
       glBufferData gl_UNIFORM_BUFFER 52 ls gl_STATIC_DRAW 
+    glBindBuffer gl_UNIFORM_BUFFER 0
+    glBindBufferBase gl_UNIFORM_BUFFER bufferId buffer
     idx <- withGLstring "LightSource" $ glGetUniformBlockIndex (Shader.programId $ program obj)
-    glUniformBlockBinding (Shader.programId (program obj)) idx 7
+    glUniformBlockBinding (Shader.programId (program obj)) idx bufferId
 
   drawElements Triangles (numArrayIndices obj) UnsignedShort (bufferOffset $ indicesOffset obj) 
 

@@ -139,7 +139,7 @@ lightSource =
       }
   , LightSource
       { diffuse =  vec4 0 0 1000000 1
-      , specular = vec4  500000  700000  900000 1
+      , specular = vec4  200000  100000  100000 1
       , position = vec4 300 (-300) 300 1
       }
   , LightSource

@@ -48,7 +48,8 @@ void main(void)
     // [GGX]
     // D(h) = alpha^2 / ( pi * (dot(n, h)^2 * (alpha^2 - 1) + 1)^2)
     vec3 halfVector = normalize(eyeVector + lightVector);
-    float alpha2 = roughness * roughness;
+    float alpha = roughness * roughness;
+    float alpha2 = alpha * alpha;
     float dotNH = dot(normal, halfVector);
     float x = dotNH * dotNH * (alpha2 - 1) + 1;
     float D = alpha2 / (pi * x * x);

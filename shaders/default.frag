@@ -26,14 +26,11 @@ void main(void)
   // material parameter
   vec4 ambient = vec4(0.2, 0.1, 0.2, 1.0);
 
-  // light parameter
-  const vec3 lightPos = vec3(50, 50, -100);
-
   vec3 eyeVector = normalize(-pos);
-  vec3 lightVector = normalize(lightPos - pos);
+  vec3 lightVector = normalize(position.xyz - pos);
   vec3 refVector = normalize(reflect(lightVector, normal));
 
-  vec4 Idiff = diffuse * max(dot(normal, lightVector), 0.0);
+  vec4 Idiff = vec4(1,1,1,1) * max(dot(normal, lightVector), 0.0);
   Idiff = clamp(Idiff, 0.0, 1.0);
 
   // [GGX]

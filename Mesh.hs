@@ -132,17 +132,16 @@ create vertices indices = do
 
 lightSource :: LightSource
 lightSource = LightSource
-  { diffuse = vec4 1 1 1 1
-  , specular = vec4 0.5 0.7 0.9 1
+  { diffuse =  vec4 1000000 1000000 1000000 1
+  , specular = vec4  500000  700000  900000 1
   , position = vec4 (-300) 300 (-300) 1
-  , attenuation = 1
   }
 
 material :: Material
 material = Material
-  { baseColor = vec4 0.9 0.7 0.4 1
-  , metallic = 0.3
-  , roughness = 0.4
+  { baseColor = vec4 0.8 0.5 0.1 1
+  , metallic = 0.1
+  , roughness = 0.3
   }
 
 instance NearZero CFloat where

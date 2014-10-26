@@ -4,7 +4,6 @@ layout(std140) uniform LightSource {
   vec4 diffuse;
   vec4 specular;
   vec4 position;
-  float attenuation;
 };
 
 layout (std140) uniform Material {
@@ -29,11 +28,14 @@ void main(void)
   vec4 ambient = vec4(0.2, 0.1, 0.2, 1.0);
 
   vec3 eyeVector = normalize(-pos);
-  vec3 lightVector = normalize(position.xyz - pos);
+  vec3 vertexToLight = position.xyz - pos;
+  vec3 lightVector = normalize(vertexToLight);
   vec3 refVector = normalize(reflect(lightVector, normal));
 
+  float distance = length(vertexToLight);
+  float attenuation = 1.0 / (distance * distance);
+
   vec4 Idiff = col * baseColor * diffuse * max(dot(normal, lightVector), 0.0);
-  Idiff = clamp(Idiff, 0.0, 1.0);
 
   // [GGX]
   // D(h) = alpha^2 / ( pi * (dot(n, h)^2 * (alpha^2 - 1) + 1)^2)
@@ -64,8 +66,7 @@ void main(void)
   // f(l, v) = D(h) * F(v, h) * G(l, v, h) / (4 * dot(n, l) * dot(n, v))
   float f = (D * F * G) / (4 * dotNL * dotNV);
 
-  vec4 Ispec = specular * f;
-  Ispec = clamp(Ispec, 0.0, 1.0);
+  vec4 Ispec = col * baseColor * specular * f;
 
-  fColor = ambient + Idiff + Ispec;
+  fColor = ambient + attenuation * (Idiff + Ispec);
 }

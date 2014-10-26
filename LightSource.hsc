@@ -13,7 +13,6 @@ data LightSource = LightSource
   { diffuse :: Vec.Vec4 CFloat
   , specular :: Vec.Vec4 CFloat
   , position :: Vec.Vec4 CFloat
-  , attenuation :: CFloat
   }
 
 instance Storable LightSource where
@@ -23,13 +22,11 @@ instance Storable LightSource where
     diff <- (#peek CLightSource, diffuse) ptr
     spec <- (#peek CLightSource, specular) ptr
     pos <- (#peek CLightSource, position) ptr
-    att <- (#peek CLightSource, attenuation) ptr
-    return (LightSource diff spec pos att)
-  poke ptr (LightSource diff spec pos att) = do
+    return (LightSource diff spec pos)
+  poke ptr (LightSource diff spec pos) = do
     (#poke CLightSource, diffuse) ptr diff
     (#poke CLightSource, specular) ptr spec
     (#poke CLightSource, position) ptr pos
-    (#poke CLightSource, attenuation) ptr att
 
 data Material = Material
   { baseColor :: Vec.Vec4 CFloat

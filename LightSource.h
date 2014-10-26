@@ -5,7 +5,6 @@ typedef struct CLightSource {
   Vec4 diffuse;
   Vec4 specular;
   Vec4 position;
-  float attenuation;
 } CLightSource __attribute__((aligned(16)));
 
 typedef struct CMaterial {

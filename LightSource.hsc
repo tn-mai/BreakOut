@@ -24,8 +24,8 @@ instance Storable LightSource where
     spec <- (#peek CLightSource, specular) ptr
     pos <- (#peek CLightSource, position) ptr
     att <- (#peek CLightSource, attenuation) ptr
-    return (LightSource pos diff spec att)
-  poke ptr (LightSource pos diff spec att) = do
+    return (LightSource diff spec pos att)
+  poke ptr (LightSource diff spec pos att) = do
     (#poke CLightSource, diffuse) ptr diff
     (#poke CLightSource, specular) ptr spec
     (#poke CLightSource, position) ptr pos

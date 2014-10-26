@@ -30,7 +30,7 @@ void main(void)
   vec3 lightVector = normalize(position.xyz - pos);
   vec3 refVector = normalize(reflect(lightVector, normal));
 
-  vec4 Idiff = col * diffuse * max(dot(normal, lightVector), 0.0);
+  vec4 Idiff = col * baseColor * diffuse * max(dot(normal, lightVector), 0.0);
   Idiff = clamp(Idiff, 0.0, 1.0);
 
   // [GGX]

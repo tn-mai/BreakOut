@@ -138,6 +138,13 @@ lightSource = LightSource
   , attenuation = 1
   }
 
+material :: Material
+material = Material
+  { baseColor = vec4 0 1 0 1
+  , metallic = 0.5
+  , roughness = 0.2
+  }
+
 instance NearZero CFloat where
   nearZero 0 = True
   nearZero _ = False
@@ -175,6 +182,18 @@ draw obj modelMatrix viewMatrix projectionMatrix = do
     glBindBuffer gl_UNIFORM_BUFFER 0
     glBindBufferBase gl_UNIFORM_BUFFER bufferId buffer
     idx <- withGLstring "LightSource" $ glGetUniformBlockIndex (Shader.programId $ program obj)
+    glUniformBlockBinding (Shader.programId (program obj)) idx bufferId
+
+  alloca $ \ptr -> do
+    let bufferId = 6
+    glGenBuffers 1 ptr
+    buffer <- peek ptr
+    glBindBuffer gl_UNIFORM_BUFFER buffer
+    with material $ \mat -> do
+      glBufferData gl_UNIFORM_BUFFER (fromIntegral (sizeOf mat)) mat gl_DYNAMIC_DRAW
+    glBindBuffer gl_UNIFORM_BUFFER 0
+    glBindBufferBase gl_UNIFORM_BUFFER bufferId buffer
+    idx <- withGLstring "Material" $ glGetUniformBlockIndex (Shader.programId $ program obj)
     glUniformBlockBinding (Shader.programId (program obj)) idx bufferId
 
   drawElements Triangles (numArrayIndices obj) UnsignedShort (bufferOffset $ indicesOffset obj) 

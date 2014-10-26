@@ -26,7 +26,7 @@ smooth out vec3 pos;
 void main()
 {
   col = vColor;
-  normal = normalize(N * vec4(vNormal, 1)).xyz;
+  normal = normalize((N * vec4(vNormal, 0)).xyz);
   pos = (MV * vec4(vPosition, 1)).xyz;
   gl_Position = MVP * vec4(vPosition, 1);
 }

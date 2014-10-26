@@ -150,7 +150,6 @@ draw obj modelMatrix viewMatrix projectionMatrix = do
 
   let mvMatrix = (Vec.multmm viewMatrix modelMatrix) :: Mat44 GLfloat
       mvpMatrix = (Vec.multmm projectionMatrix mvMatrix) :: Mat44 GLfloat
-      vpMatrix = (Vec.multmm viewMatrix projectionMatrix) :: Mat44 GLfloat
       normalMatrix = Vec.transpose (fromJust (Vec.invert mvMatrix))
 
   let mvpLocation = mvpUniformLocation obj
@@ -163,7 +162,7 @@ draw obj modelMatrix viewMatrix projectionMatrix = do
   with normalMatrix $ glUniformMatrix4fv (fromIntegral normalLocation) 1 (fromBool True) . castPtr
   glUniform1f (fromIntegral shineLocation) 64
 
-  let newPos = Vec.multmv vpMatrix (LightSource.position lightSource)
+  let newPos = Vec.multmv viewMatrix (LightSource.position lightSource)
       newLS = lightSource { LightSource.position = newPos }
 
   alloca $ \ptr -> do

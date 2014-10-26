@@ -130,7 +130,7 @@ lightSource =
       }
   , LightSource
       { diffuse =  vec4 0 0 1000000 1
-      , specular = vec4  200000  100000  100000 1
+      , specular = vec4  20000  10000  10000 1
       , position = vec4 300 (-300) 300 1
       }
   , LightSource
@@ -148,8 +148,8 @@ lightSource =
 material :: Material
 material = Material
   { baseColor = vec4 0.8 0.5 0.1 1
-  , metallic = 0.1
-  , roughness = 0.3
+  , metallic = 0.5
+  , roughness = 0.1
   }
 
 instance NearZero CFloat where

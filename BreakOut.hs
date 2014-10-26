@@ -152,10 +152,6 @@ renderingLoop window mesh = do
 vec3 :: forall a a1 a2. a -> a1 -> a2 -> a :. (a1 :. (a2 :. ()))
 vec3 x y z = x :. y :. z :. ()
 
-instance NearZero CFloat where
-  nearZero 0 = True
-  nearZero _ = False
-
 calcMatrix :: Camera -> Mat44 GLfloat -> [Mat44 GLfloat]
 calcMatrix c modelMatrix =
   [mvp, mv, n]
@@ -183,15 +179,14 @@ display camera mesh = do
   glClear $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
 
   c <- readIORef camera
-  let [mvp, mv, n] = calcMatrix c V.identity
-      s = shininess c
+  let viewMatrix = Main.lookAt (pos c) (target c) (up c)
+      projMatrix = (V.perspective 0.1 100 (pi / 4) (4 / 3)) :: Mat44 GLfloat
 
-  Mesh.draw mesh mvp mv n s
+  Mesh.draw mesh V.identity viewMatrix projMatrix
 
   -- translation test.
   let v2 = 20 :. 0 :. 0 :. () :: Vec3 CFloat
       m2 = V.translate v2 (V.identity :: Mat44 CFloat)
-  let [mvp', mv', n'] = calcMatrix c m2
-  Mesh.draw mesh mvp' mv' n' s
+  Mesh.draw mesh m2 viewMatrix projMatrix
 
   glFlush

@@ -7,6 +7,7 @@ module Mesh
   , create
   , draw
   , destroy
+  , NearZero
   )
  where
 
@@ -18,9 +19,11 @@ import Foreign.Storable
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Ptr
+import Foreign.C.Types
 import Foreign.Marshal.Utils
 import qualified Shader as Shader
 import Data.Vec as Vec
+import Data.Maybe
 import LightSource
 
 vec4 :: forall a a1 a2 a3. a -> a1 -> a2 -> a3 -> a :. (a1 :. (a2 :. (a3 :. ())))
@@ -135,27 +138,40 @@ lightSource = LightSource
   , attenuation = 1
   }
 
+instance NearZero CFloat where
+  nearZero 0 = True
+  nearZero _ = False
+
 -- | Draw the object.
-draw :: (Storable a) => Object -> a -> a -> a -> GLfloat -> IO ()
-draw obj mvp mv normalMatrix s = do
+draw :: Object -> Mat44 GLfloat -> Mat44 GLfloat -> Mat44 GLfloat -> IO ()
+draw obj modelMatrix viewMatrix projectionMatrix = do
   Shader.useProgram $ Just (program obj)
   bindVertexArrayObject $= Just (vao obj)
+
+  let mvMatrix = (Vec.multmm viewMatrix modelMatrix) :: Mat44 GLfloat
+      mvpMatrix = (Vec.multmm projectionMatrix mvMatrix) :: Mat44 GLfloat
+      vpMatrix = (Vec.multmm viewMatrix projectionMatrix) :: Mat44 GLfloat
+      normalMatrix = Vec.transpose (fromJust (Vec.invert mvMatrix))
 
   let mvpLocation = mvpUniformLocation obj
       mvLocation = mvUniformLocation obj
       normalLocation = normalUniformLocation obj
       shineLocation = shininessUniformLocation obj
-  with mvp $ glUniformMatrix4fv (fromIntegral mvpLocation) 1 (fromBool True) . castPtr
-  with mv $ glUniformMatrix4fv (fromIntegral mvLocation) 1 (fromBool True) . castPtr
+
+  with mvpMatrix $ glUniformMatrix4fv (fromIntegral mvpLocation) 1 (fromBool True) . castPtr
+  with mvMatrix $ glUniformMatrix4fv (fromIntegral mvLocation) 1 (fromBool True) . castPtr
   with normalMatrix $ glUniformMatrix4fv (fromIntegral normalLocation) 1 (fromBool True) . castPtr
-  glUniform1f (fromIntegral shineLocation) s
+  glUniform1f (fromIntegral shineLocation) 64
+
+  let newPos = Vec.multmv vpMatrix (LightSource.position lightSource)
+      newLS = lightSource { LightSource.position = newPos }
 
   alloca $ \ptr -> do
     let bufferId = 7
     glGenBuffers 1 ptr
     buffer <- peek ptr
     glBindBuffer gl_UNIFORM_BUFFER buffer
-    with lightSource $ \ls -> do
+    with newLS $ \ls -> do
       glBufferData gl_UNIFORM_BUFFER 52 ls gl_STATIC_DRAW 
     glBindBuffer gl_UNIFORM_BUFFER 0
     glBindBufferBase gl_UNIFORM_BUFFER bufferId buffer

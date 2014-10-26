@@ -7,8 +7,9 @@ import qualified App as App
 import qualified Mesh as Mesh
 
 import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
-import Graphics.Rendering.OpenGL
+import Graphics.Rendering.OpenGL.Raw
 import Data.Maybe (isNothing, fromJust)
+import Data.Bits
 import Data.IORef
 import Data.Vec as V
 import Control.Monad
@@ -174,8 +175,8 @@ lookAt eye target up = x :. y :. z :. h :. ()
 
 display :: IORef Camera -> Mesh.Object -> IO ()
 display camera mesh = do
-  clearColor $= Color4 0.1 0.4 0.2 1
-  clear [ColorBuffer, DepthBuffer]
+  glClearColor 0.1 0.4 0.2 1
+  glClear $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
 
   c <- readIORef camera
   let [mvp, mv, n] = calcMatrix c V.identity
@@ -189,4 +190,4 @@ display camera mesh = do
   let [mvp', mv', n'] = calcMatrix c m2
   Mesh.draw mesh mvp' mv' n' s
 
-  flush
+  glFlush

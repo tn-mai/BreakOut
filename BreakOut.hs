@@ -152,16 +152,6 @@ renderingLoop window mesh = do
 vec3 :: forall a a1 a2. a -> a1 -> a2 -> a :. (a1 :. (a2 :. ()))
 vec3 x y z = x :. y :. z :. ()
 
-calcMatrix :: Camera -> Mat44 GLfloat -> [Mat44 GLfloat]
-calcMatrix c modelMatrix =
-  [mvp, mv, n]
-  where
-    viewMatrix = Main.lookAt (pos c) (target c) (up c)
-    projMatrix = (V.perspective 0.1 100 (pi / 4) (4 / 3)) :: Mat44 GLfloat
-    mv = V.multmm viewMatrix modelMatrix
-    mvp = V.multmm projMatrix mv
-    n = V.transpose (fromJust (V.invert mv))
-
 lookAt :: Floating a => Vec3 a -> Vec3 a -> Vec3 a -> Mat44 a
 lookAt eye target up = x :. y :. z :. h :. ()
   where

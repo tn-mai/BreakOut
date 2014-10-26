@@ -40,9 +40,6 @@ data Object = Object
   , mvpUniformLocation :: Shader.UniformLocation -- | Model-View-Projection matrix.
   , mvUniformLocation :: Shader.UniformLocation -- | Model-View matrix(for lighting).
   , normalUniformLocation :: Shader.UniformLocation -- | Normal matrix(for lighting).
-  , shininessUniformLocation :: Shader.UniformLocation
-  , lightUniformLocation :: Shader.UniformLocation
-  , materialUniformLocation :: Shader.UniformLocation
   }
 
 -- | Get the pointer of buffer from the offset.
@@ -112,9 +109,6 @@ create vertices indices = do
   mvpLocation <- Shader.uniformLocation program "MVP"
   mvLocation <- Shader.uniformLocation program "MV"
   normalLocation <- Shader.uniformLocation program "N"
-  shineLocation <- Shader.uniformLocation program "shininess"
-  lightLocation <- Shader.uniformLocation program "LightSource"
-  materialLocation <- Shader.uniformLocation program "Material"
   return Object
     { vao = vao
     , vertexBuffer = vb
@@ -125,9 +119,6 @@ create vertices indices = do
     , mvpUniformLocation = mvpLocation
     , mvUniformLocation = mvLocation
     , normalUniformLocation = normalLocation
-    , shininessUniformLocation = shineLocation
-    , lightUniformLocation = lightLocation
-    , materialUniformLocation = materialLocation
     }
 
 lightSource :: [LightSource]
@@ -181,12 +172,10 @@ draw obj modelMatrix viewMatrix projectionMatrix = do
   let mvpLocation = mvpUniformLocation obj
       mvLocation = mvUniformLocation obj
       normalLocation = normalUniformLocation obj
-      shineLocation = shininessUniformLocation obj
 
   with mvpMatrix $ glUniformMatrix4fv (fromIntegral mvpLocation) 1 (fromBool True) . castPtr
   with mvMatrix $ glUniformMatrix4fv (fromIntegral mvLocation) 1 (fromBool True) . castPtr
   with normalMatrix $ glUniformMatrix4fv (fromIntegral normalLocation) 1 (fromBool True) . castPtr
-  glUniform1f (fromIntegral shineLocation) 64
 
   let newLS = Prelude.map (toViewSpace viewMatrix) lightSource
 

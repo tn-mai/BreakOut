@@ -16,8 +16,6 @@ layout (std140) uniform Material {
   float roughness;
 };
 
-uniform float shininess;
-
 smooth in vec4 col;
 smooth in vec3 normal;
 smooth in vec3 pos;

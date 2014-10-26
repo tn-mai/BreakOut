@@ -99,7 +99,7 @@ renderingLoop window mesh = do
   GLFW.setCursorInputMode window GLFW.CursorInputMode'Disabled
   curPos <- GLFW.getCursorPos window
   camera <- newIORef $ Main.Camera
-    { pos = vec3 40 30 30
+    { pos = vec3 25 25 50
     , target = vec3 0 0 0
     , up = vec3 0 1 0
     , cur = curPos
@@ -128,6 +128,9 @@ renderingLoop window mesh = do
       ms <- keyAction GLFW.Key'S (return (-frontVector)) (return zeroVector)
       md <- keyAction GLFW.Key'D (return (-leftVector)) (return zeroVector)
 
+      su <- keyAction GLFW.Key'U (return (0.5 :: GLfloat)) (return 0)
+      sd <- keyAction GLFW.Key'J (return (-0.5 :: GLfloat)) (return 0)
+
       (newX, newY) <- GLFW.getCursorPos window
       let (prevX, prevY) = cur c
           rotH = V.rotationVec (up c) $ realToFrac ((newX - prevX) * 0.001 * (-pi) )
@@ -139,6 +142,7 @@ renderingLoop window mesh = do
         { pos = (pos c) + movement
         , target = newTarget + (pos c) + movement
         , cur = (newX, newY)
+        , shininess = (shininess c) + su + sd
         }
       isExit <- GLFW.getKey window GLFW.Key'Escape
       when (isExit /= GLFW.KeyState'Pressed) $ do

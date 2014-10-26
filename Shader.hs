@@ -1,60 +1,132 @@
 module Shader
-  ( Source(..)
+  ( Program(..)
+  , Source(..)
   , Info(..)
+  , UniformLocation
   , load
   , unload
+  , uniformLocation
+  , useProgram
   )
 where
 
 import Control.Exception
 import Control.Monad
-import Graphics.Rendering.OpenGL as GL
+import Foreign.Marshal.Alloc
+import Foreign.Marshal.Utils
+import Foreign.Marshal.Array
+import Foreign.Ptr
+import Foreign.Storable
+--import Graphics.Rendering.OpenGL.GL.GLboolean
+--import Graphics.Rendering.OpenGL.GL.PeekPoke
+import Graphics.Rendering.OpenGL.GL.ByteString
+import Graphics.Rendering.OpenGL.GL.StateVar
+import Graphics.Rendering.OpenGL.Raw
 import qualified Data.ByteString as BS
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as E
 
+data Program = Program { programId :: GLuint }
+
 data Source = ByteSource BS.ByteString | StringSource String | FileSource FilePath deriving (Eq, Ord, Show)
-data Info = Info ShaderType Source deriving (Eq, Ord, Show)
+data Info = Info GLenum Source deriving (Eq, Ord, Show)
+
+type UniformLocation = GLint
 
 {-- | Create the shader program object, and load, compile and attach the shaders.
 --}
 load :: [Info]
      -> IO Program
-load infoList =
+load infoList = do
   bracketOnError
-    createProgram
-    deleteObjectName
-    (\p -> do
-      loadCompileAttach p infoList
-      checked linkProgram linkStatus programInfoLog "link" p
-      return p
+    glCreateProgram
+    glDeleteProgram
+    (\progId -> do
+      loadCompileAttach progId infoList
+      checked glLinkProgram linkStatus programInfoLog "link" progId
+      return $ Program progId
     )
   where
-    loadCompileAttach :: Program -> [Info] -> IO ()
+    loadCompileAttach :: GLuint -> [Info] -> IO ()
     loadCompileAttach _ [] = return ()
-    loadCompileAttach program (Info shType shSource : xs) =
+    loadCompileAttach progId (Info shType shSource : xs) = do
       bracketOnError
-        (createShader shType)
-        deleteObjectName
-        (\shader -> do
+        (glCreateShader shType)
+        glDeleteShader
+        (\shaderId -> do
           bin <- toBinary shSource
-          shaderSourceBS shader $= bin
-          checked compileShader compileStatus shaderInfoLog "compile" shader
-          attachShader program shader
-          loadCompileAttach program xs)
+          setShaderSource shaderId bin
+          checked glCompileShader compileStatus shaderInfoLog "compile" shaderId
+          glAttachShader progId shaderId
+          loadCompileAttach progId xs)
+
+    setShaderSource :: GLuint -> BS.ByteString -> IO ()
+    setShaderSource shaderId bin =
+      withByteString bin $ \ptr len ->
+        with ptr $ \ptrBuf ->
+          with len $ \lenBuf ->
+            glShaderSource shaderId 1 ptrBuf lenBuf
+
+    linkStatus :: GLuint -> GettableStateVar Bool
+    linkStatus = programVar unmarshalGLboolean gl_LINK_STATUS
+
+    programInfoLog :: GLuint -> GettableStateVar String
+    programInfoLog =
+      makeGettableStateVar . fmap unpackUtf8 . stringQuery programInfoLogLength glGetProgramInfoLog
+
+    programInfoLogLength :: GLuint -> GettableStateVar GLsizei
+    programInfoLogLength = programVar fromIntegral gl_INFO_LOG_LENGTH
+
+    compileStatus :: GLuint -> GettableStateVar Bool
+    compileStatus = shaderVar unmarshalGLboolean gl_COMPILE_STATUS
+
+    shaderInfoLog :: GLuint -> GettableStateVar String
+    shaderInfoLog =
+      makeGettableStateVar . fmap unpackUtf8 . stringQuery shaderInfoLogLength glGetShaderInfoLog
+
+    shaderInfoLogLength :: GLuint -> GettableStateVar GLsizei
+    shaderInfoLogLength = shaderVar fromIntegral gl_INFO_LOG_LENGTH
 
 {-- | Detach and release all of shaders and delete the shader program object.
 --}
 unload :: Program -> IO ()
-unload program = do
-  currentProgram $= Nothing
-  shaders <- get $ attachedShaders program
+unload (Program progId) = do
+  glUseProgram 0
+  shaders <- getAttachedShaders progId
   mapM_ releaseShader shaders
-  deleteObjectName program
+  glDeleteProgram progId
   where
-    releaseShader shader = do
-      detachShader program shader
-      deleteObjectName shader
+    releaseShader shaderId = do
+      glDetachShader progId shaderId
+      glDeleteShader shaderId
+
+    getAttachedShaders :: GLuint -> IO [GLuint]
+    getAttachedShaders progId' = do
+      numShaders <- get $ programVar fromIntegral gl_ATTACHED_SHADERS progId'
+      ids <- allocaArray (fromIntegral numShaders) $ \buf -> do
+        glGetAttachedShaders progId' numShaders nullPtr buf
+        peekArray (fromIntegral numShaders) buf
+      return ids
+
+unmarshalGLboolean :: (Num a, Eq a) => a -> Bool
+unmarshalGLboolean = (/= 0)
+
+peek1 :: Storable a => (a -> b) -> Ptr a -> IO b
+peek1 f ptr = do
+  x <- peekElemOff ptr 0
+  return $ f x
+
+shaderVar :: (GLint -> a) -> GLenum -> GLuint -> GettableStateVar a
+shaderVar f p shaderId =
+  makeGettableStateVar $ alloca $ \buf -> do
+    glGetShaderiv shaderId p buf
+    peek1 f buf
+
+programVar :: (GLint -> a) -> GLenum -> GLuint -> GettableStateVar a
+programVar f p progId =
+  makeGettableStateVar $ alloca $ \buf -> do
+    glGetProgramiv progId p buf
+    peek1 f buf
 
 toBinary :: Source
          -> IO BS.ByteString
@@ -74,3 +146,10 @@ checked action getStatus getLog errorMessage object = do
   unless r $ do
     actionLog <- get $ getLog object
     fail $ errorMessage ++ " log: " ++ actionLog
+
+uniformLocation :: Program -> String -> IO UniformLocation
+uniformLocation (Program progId) name = withGLstring name $ glGetUniformLocation progId
+
+useProgram :: Maybe Program -> IO ()
+useProgram (Just (Program progId)) = glUseProgram progId
+useProgram _ = glUseProgram 0

@@ -90,6 +90,7 @@ data Camera = Camera
   , target :: Vec3 GLfloat
   , up :: Vec3 GLfloat
   , cur :: (Double, Double) -- for mouse movement.
+  , shininess :: GLfloat
   }
 
 renderingLoop :: GLFW.Window -> Mesh.Object -> IO ()
@@ -101,6 +102,7 @@ renderingLoop window mesh = do
     , target = vec3 0 0 0
     , up = vec3 0 1 0
     , cur = curPos
+    , shininess = 64
     }
   loop camera
   where
@@ -177,13 +179,14 @@ display camera mesh = do
 
   c <- readIORef camera
   let [mvp, mv, n] = calcMatrix c V.identity
+      s = shininess c
 
-  Mesh.draw mesh mvp mv n
+  Mesh.draw mesh mvp mv n s
 
   -- translation test.
   let v2 = 20 :. 0 :. 0 :. () :: Vec3 CFloat
       m2 = V.translate v2 (V.identity :: Mat44 CFloat)
   let [mvp', mv', n'] = calcMatrix c m2
-  Mesh.draw mesh mvp' mv' n'
+  Mesh.draw mesh mvp' mv' n' s
 
   flush

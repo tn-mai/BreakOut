@@ -1,5 +1,7 @@
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeOperators #-}
 module Mesh
   ( Object(..)
   , create
@@ -8,13 +10,21 @@ module Mesh
   )
  where
 
-import Graphics.Rendering.OpenGL
+import Graphics.Rendering.OpenGL as GL
 import Graphics.Rendering.OpenGL.Raw
+import Graphics.Rendering.OpenGL.GL.ByteString
+import Graphics.Rendering.OpenGL.Raw.ARB.UniformBufferObject
 import Foreign.Storable
+import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Marshal.Utils
 import qualified Shader as Shader
+import Data.Vec as Vec
+import LightSource
+
+vec4 :: forall a a1 a2 a3. a -> a1 -> a2 -> a3 -> a :. (a1 :. (a2 :. (a3 :. ())))
+vec4 x y z w = x :. y :. z :. w :. ()
 
 -- | The object that has any rendering status.
 data Object = Object
@@ -23,10 +33,13 @@ data Object = Object
   , indexBuffer :: BufferObject
   , indicesOffset :: ArrayIndex
   , numArrayIndices :: NumArrayIndices
-  , program :: Program
-  , mvpUniformLocation :: UniformLocation -- | Model-View-Projection matrix.
-  , mvUniformLocation :: UniformLocation -- | Model-View matrix(for lighting).
-  , normalUniformLocation :: UniformLocation -- | Normal matrix(for lighting).
+  , program :: Shader.Program
+  , mvpUniformLocation :: Shader.UniformLocation -- | Model-View-Projection matrix.
+  , mvUniformLocation :: Shader.UniformLocation -- | Model-View matrix(for lighting).
+  , normalUniformLocation :: Shader.UniformLocation -- | Normal matrix(for lighting).
+  , shininessUniformLocation :: Shader.UniformLocation
+  , lightUniformLocation :: Shader.UniformLocation
+  , materialUniformLocation :: Shader.UniformLocation
   }
 
 -- | Get the pointer of buffer from the offset.
@@ -35,7 +48,7 @@ bufferOffset = plusPtr nullPtr . fromIntegral
 
 -- | Get the byte size of a array.
 arrayByteSize :: (Storable a) => [a] -> Int
-arrayByteSize xs = (sizeOf $ head xs) * (length xs)
+arrayByteSize xs = (sizeOf $ Prelude.head xs) * (Prelude.length xs)
 
 -- | Create the OpenGL buffer that has a target type and is initialized a data array.
 createBuffer :: (Storable a) => BufferTarget -> [a] -> IO BufferObject
@@ -66,7 +79,7 @@ create vertices indices = do
       offsetPosition = 0
       offsetNormal = offsetPosition + numPositionElements
       offsetColor = offsetNormal + numColorElements
-      sizeElement = sizeOf $ head vertices
+      sizeElement = sizeOf $ Prelude.head vertices
       sizeVertex = fromIntegral $ sizeElement * (numPositionElements + numNormalElements + numColorElements)
 
   vertexAttribPointer vPosition $=
@@ -90,53 +103,72 @@ create vertices indices = do
   bindVertexArrayObject $= Nothing
 
   program <- Shader.load 
-    [ Shader.Info VertexShader (Shader.FileSource "shaders/default.vert")
-    , Shader.Info FragmentShader (Shader.FileSource "shaders/default.frag")
+    [ Shader.Info gl_VERTEX_SHADER (Shader.FileSource "shaders/default.vert")
+    , Shader.Info gl_FRAGMENT_SHADER (Shader.FileSource "shaders/default.frag")
     ]
-  mvpLocation <- get $ uniformLocation program "MVP"
-  mvLocation <- get $ uniformLocation program "MV"
-  normalLocation <- get $ uniformLocation program "N"
+  mvpLocation <- Shader.uniformLocation program "MVP"
+  mvLocation <- Shader.uniformLocation program "MV"
+  normalLocation <- Shader.uniformLocation program "N"
+  shineLocation <- Shader.uniformLocation program "shininess"
+  lightLocation <- Shader.uniformLocation program "LightSource"
+  materialLocation <- Shader.uniformLocation program "Material"
   return Object
     { vao = vao
     , vertexBuffer = vb
     , indexBuffer = ib
     , indicesOffset = 0
-    , numArrayIndices = fromIntegral $ length indices
+    , numArrayIndices = fromIntegral $ Prelude.length indices
     , program = program
     , mvpUniformLocation = mvpLocation
     , mvUniformLocation = mvLocation
     , normalUniformLocation = normalLocation
+    , shininessUniformLocation = shineLocation
+    , lightUniformLocation = lightLocation
+    , materialUniformLocation = materialLocation
     }
 
+lightSource :: LightSource
+lightSource = LightSource
+  { diffuse = vec4 1 1 1 1
+  , specular = vec4 1 1 1 1
+  , position = vec4 50 50 100 1
+  , attenuation = 1
+  }
+
 -- | Draw the object.
-draw :: (Storable a) => Object -> a -> a -> a -> IO ()
-draw obj mvp mv normal = do
-  currentProgram $= Just (program obj)
+draw :: (Storable a) => Object -> a -> a -> a -> GLfloat -> IO ()
+draw obj mvp mv normalMatrix s = do
+  Shader.useProgram $ Just (program obj)
   bindVertexArrayObject $= Just (vao obj)
 
-  let (UniformLocation mvpLocation) = mvpUniformLocation obj
-  let (UniformLocation mvLocation) = mvUniformLocation obj
-  let (UniformLocation normalLocation) = normalUniformLocation obj
+  let mvpLocation = mvpUniformLocation obj
+      mvLocation = mvUniformLocation obj
+      normalLocation = normalUniformLocation obj
+      shineLocation = shininessUniformLocation obj
   with mvp $ glUniformMatrix4fv (fromIntegral mvpLocation) 1 (fromBool True) . castPtr
   with mv $ glUniformMatrix4fv (fromIntegral mvLocation) 1 (fromBool True) . castPtr
-  with normal $ glUniformMatrix4fv (fromIntegral normalLocation) 1 (fromBool True) . castPtr
+  with normalMatrix $ glUniformMatrix4fv (fromIntegral normalLocation) 1 (fromBool True) . castPtr
+  glUniform1f (fromIntegral shineLocation) s
+
+  alloca $ \ptr -> do
+    glGenBuffers 1 ptr
+    buffer <- peek ptr
+    glBindBufferBase gl_UNIFORM_BUFFER 7 buffer
+    with lightSource $ \ls -> do
+      glBufferData gl_UNIFORM_BUFFER 52 ls gl_STATIC_DRAW 
+    idx <- withGLstring "LightSource" $ glGetUniformBlockIndex (Shader.programId $ program obj)
+    glUniformBlockBinding (Shader.programId (program obj)) idx 7
+
   drawElements Triangles (numArrayIndices obj) UnsignedShort (bufferOffset $ indicesOffset obj) 
 
   bindVertexArrayObject $= Nothing
-  currentProgram $= Nothing
+  Shader.useProgram Nothing
   return ()
 
 -- | Destroy the object.
 destroy :: Object -> IO ()
 destroy obj = do
-  currentProgram $= Nothing
-  shaders <- get $ attachedShaders $ program obj
-  mapM_ releaseShader shaders
-  deleteObjectName $ program obj
+  Shader.unload $ program obj
   deleteObjectName $ indexBuffer obj
   deleteObjectName $ vertexBuffer obj
   deleteObjectName $ vao obj
-  where
-    releaseShader shader = do
-      detachShader (program obj) shader
-      deleteObjectName shader

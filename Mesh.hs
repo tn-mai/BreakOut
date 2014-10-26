@@ -178,7 +178,7 @@ draw obj modelMatrix viewMatrix projectionMatrix = do
     buffer <- peek ptr
     glBindBuffer gl_UNIFORM_BUFFER buffer
     with newLS $ \ls -> do
-      glBufferData gl_UNIFORM_BUFFER 52 ls gl_DYNAMIC_DRAW
+      glBufferData gl_UNIFORM_BUFFER (fromIntegral (sizeOf newLS)) ls gl_DYNAMIC_DRAW
     glBindBuffer gl_UNIFORM_BUFFER 0
     glBindBufferBase gl_UNIFORM_BUFFER bufferId buffer
     idx <- withGLstring "LightSource" $ glGetUniformBlockIndex (Shader.programId $ program obj)
@@ -190,7 +190,7 @@ draw obj modelMatrix viewMatrix projectionMatrix = do
     buffer <- peek ptr
     glBindBuffer gl_UNIFORM_BUFFER buffer
     with material $ \mat -> do
-      glBufferData gl_UNIFORM_BUFFER (fromIntegral (sizeOf mat)) mat gl_DYNAMIC_DRAW
+      glBufferData gl_UNIFORM_BUFFER (fromIntegral (sizeOf material)) mat gl_DYNAMIC_DRAW
     glBindBuffer gl_UNIFORM_BUFFER 0
     glBindBufferBase gl_UNIFORM_BUFFER bufferId buffer
     idx <- withGLstring "Material" $ glGetUniformBlockIndex (Shader.programId $ program obj)

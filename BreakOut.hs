@@ -147,6 +147,7 @@ data Camera = Camera
 data GameData = GameData
   { camera :: Camera
   , cur :: (Double, Double) -- for mouse movement.
+  , ballSpeed :: (GLfloat, GLfloat)
   }
 
 -- | The main loop in the game.
@@ -162,6 +163,7 @@ renderingLoop window initialActors = do
         , shininess = 64
         }
     , cur = curPos
+    , ballSpeed = (2, 2)
     }
   loop initialActors gameData
   where
@@ -182,14 +184,35 @@ renderingLoop window initialActors = do
           paddle = actors !! 0
           (x :. y :. z :. ()) = Main.position paddle
           newPaddleX = max 20 . min 230 $ (x + delta)
-          newActors = paddle { Main.position = vec3 newPaddleX y z  } : (Prelude.drop 1 actors)
 
-      writeIORef gameData $ gd { cur = (newX, newY) }
+      let ball = actors !! 1
+          (speedX, speedY) = ballSpeed gd
+          (bx :. by :. bz :. ()) = Main.position ball
+          (newBallX, newSpeedX) = bound (bx + speedX) speedX 270 (-20)
+          (newBallY, newSpeedY) = bound (by + speedY) speedY 370 (-20)
+
+      let newActors = paddle { Main.position = vec3 newPaddleX y z  }
+                    : ball { Main.position = vec3 newBallX newBallY bz }
+                    : (Prelude.drop 2 actors)
+
+      writeIORef gameData $ gd
+        { cur = (newX, newY)
+        , ballSpeed = (newSpeedX, newSpeedY)
+        }
 
       isExit <- GLFW.getKey window GLFW.Key'Escape
       when (isExit /= GLFW.KeyState'Pressed) $ do
         threadDelay 10000
         loop newActors gameData
+    bound pos speed top bottom =
+      let n = pos + speed
+      in
+        if n >= top
+        then (n - (n - top), (-speed))
+        else
+          if n <= bottom
+          then (n + (bottom - n), (-speed))
+          else (n, speed)
 
 -- | Make the 3 coordinate vector.
 vec3 :: forall a a1 a2. a -> a1 -> a2 -> a :. (a1 :. (a2 :. ()))

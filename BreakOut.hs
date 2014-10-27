@@ -176,33 +176,6 @@ renderingLoop window initialActors = do
       GLFW.swapBuffers window
       GLFW.pollEvents
 
-{--
-      let zeroVector = vec3 0 0 0
-      let targetDistance = (target c) - (pos c)
-          frontVector = (V.normalize targetDistance) * 2
-          leftVector = (V.cross (up c) frontVector) * 2
-
-      mw <- keyAction GLFW.Key'W (return frontVector) (return zeroVector)
-      ma <- keyAction GLFW.Key'A (return leftVector) (return zeroVector)
-      ms <- keyAction GLFW.Key'S (return (-frontVector)) (return zeroVector)
-      md <- keyAction GLFW.Key'D (return (-leftVector)) (return zeroVector)
-
-      su <- keyAction GLFW.Key'U (return (0.5 :: GLfloat)) (return 0)
-      sd <- keyAction GLFW.Key'J (return (-0.5 :: GLfloat)) (return 0)
-
-      (newX, newY) <- GLFW.getCursorPos window
-      let (prevX, prevY) = cur c
-          rotH = V.rotationVec (up c) $ realToFrac ((newX - prevX) * 0.001 * (-pi) )
-          rotV = V.rotationVec leftVector $ realToFrac ((prevY - newY) * 0.001 * (-pi))
-          newTarget = V.take n3 (V.multmv rotH (V.multmv rotV (V.snoc targetDistance 1)))
-
-      let movement = mw + ma + ms + md
-      writeIORef camera $ c
-        { pos = (pos c) + movement
-        , target = newTarget + (pos c) + movement
-        , cur = (newX, newY)
-        }
---}
       (newX, newY) <- GLFW.getCursorPos window
       let (prevX, _) = cur gd
           delta = realToFrac ((newX - prevX) * (-1)) :: GLfloat

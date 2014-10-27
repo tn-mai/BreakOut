@@ -27,11 +27,13 @@ import Foreign.Storable
 
 vec4 = Mesh.vec4
 
+-- | Actor is the mesh object controller.
 data Actor = Actor
   { object :: Mesh.Object
   , matrix :: V.Mat44 GLfloat
   }
 
+-- | the light source list.
 lightSource :: [LightSource]
 lightSource =
   [ LightSource
@@ -56,9 +58,11 @@ lightSource =
       }
   ]
 
+-- | Transform the light source position in the view coordinates.
 toViewSpace :: Mat44 GLfloat -> LightSource -> LightSource
 toViewSpace m ls = ls { LightSource.position = V.multmv m (LightSource.position ls) }
 
+-- | the material list for any mesh object.
 materials :: [Material]
 materials =
   [ Material
@@ -73,6 +77,7 @@ materials =
     }
   ]
 
+-- | The entry point.
 main :: IO ()
 main = do
   progName <- getProgName
@@ -96,6 +101,7 @@ main = do
   Mesh.destroy cubeMesh
   App.destroy (fromJust r)
 
+-- | The camera object.
 data Camera = Camera
   { pos :: Vec3 GLfloat
   , target :: Vec3 GLfloat
@@ -104,6 +110,7 @@ data Camera = Camera
   , shininess :: GLfloat
   }
 
+-- | The main loop in the game.
 renderingLoop :: GLFW.Window -> [Actor] -> IO ()
 renderingLoop window actors = do
   GLFW.setCursorInputMode window GLFW.CursorInputMode'Disabled
@@ -159,9 +166,11 @@ renderingLoop window actors = do
         threadDelay 10000
         loop camera
 
+-- | Make the 3 coordinate vector.
 vec3 :: forall a a1 a2. a -> a1 -> a2 -> a :. (a1 :. (a2 :. ()))
 vec3 x y z = x :. y :. z :. ()
 
+-- | Make the view matrix looking at any point.
 lookAt :: Floating a => Vec3 a -> Vec3 a -> Vec3 a -> Mat44 a
 lookAt eye target up = x :. y :. z :. h :. ()
   where
@@ -173,6 +182,7 @@ lookAt eye target up = x :. y :. z :. h :. ()
     z = V.snoc (-forward) (V.dot forward eye)
     h = 0 :. 0 :. 0 :. 1 :. ()
 
+-- | Render all of the actors.
 display :: IORef Camera -> [Actor] -> IO ()
 display camera [] = return ()
 display camera actors = do

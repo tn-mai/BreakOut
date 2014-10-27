@@ -71,9 +71,24 @@ materials =
     , roughness = 0.1
     }
   , Material
-    { baseColor = Mesh.vec4 0.2 0.6 0.5 1
+    { baseColor = Mesh.vec4 0.6 0.5 0.4 1
+    , metallic = 0.5
+    , roughness = 0.1
+    }
+  , Material
+    { baseColor = Mesh.vec4 0.8 0.2 0.3 1
+    , metallic = 0.3
+    , roughness = 0.6
+    }
+  , Material
+    { baseColor = Mesh.vec4 0.3 0.9 0.2 1
     , metallic = 0.1
     , roughness = 0.6
+    }
+  , Material
+    { baseColor = Mesh.vec4 0.2 0.6 0.5 1
+    , metallic = 0.7
+    , roughness = 0.1
     }
   ]
 
@@ -86,20 +101,39 @@ main = do
 
   cubeMesh <- Mesh.create BarMesh.chamferedCubeVertices BarMesh.chamferedCubeIndices
   let identityMatrix = V.identity :: Mat44 CFloat
-      meshA = cubeMesh { Mesh.material = materials !! 0 }
-      meshB = cubeMesh { Mesh.material = materials !! 1 }
-      meshC = cubeMesh { Mesh.material = materials !! 1 }
-      mA = V.scale (vec4 10 10 10 1) identityMatrix
-      mB = V.translate (vec3 300 0 0) $ V.scale (vec4 10 10 10 1) identityMatrix
-      mC = V.translate (vec3 0 300 300) identityMatrix
-      actors =
-        [ Actor meshA mA
-        , Actor meshB mB
-        , Actor meshC mC
-        ]
-  renderingLoop (fromJust r) actors
+      floorActors = makeActors
+        cubeMesh { Mesh.material = materials !! 0 }
+        (V.scale (vec4 2.5 2.5 0.5 1) identityMatrix)
+        $ [(x, y, 0) | x <- [0, 50..250], y <- [0, 50 .. 350]]
+      wallActors = makeActors
+        cubeMesh { Mesh.material = materials !! 1 }
+        (V.scale (vec4 2.5 0.5 2.5 1) identityMatrix)
+        $ [(x, y, (-20)) | x <- [0, 50..250], y <- [-30, 380]]
+      sideWallActors = makeActors
+        cubeMesh { Mesh.material = materials !! 1 }
+        (V.scale (vec4 0.5 2.5 2.5 1) identityMatrix)
+        $ [(x, y, (-20)) | x <- [-30, 280], y <- [0, 50 .. 350]]
+      paddleActor = makeActors
+        cubeMesh { Mesh.material = materials !! 2 }
+        (V.scale (vec4 4.0 1.0 1.0 1) identityMatrix)
+        $ [(125, 50, -30)]
+      blockActors = makeActors
+        cubeMesh { Mesh.material = materials !! 3 }
+        (V.scale (vec4 2.5 1.25 1.25 1) identityMatrix)
+        $ [(x, y, (-30)) | x <- [25, 75 .. 200], y <- [200, 225 .. 300]]
+      ballActor = makeActors
+        cubeMesh { Mesh.material = materials !! 4 }
+        (V.scale (vec4 0.5 0.5 0.5 1) identityMatrix)
+        $ [(125, 100, -30)]
+
+  renderingLoop (fromJust r) $ ballActor ++ paddleActor ++ blockActors ++ floorActors ++ wallActors ++ sideWallActors
   Mesh.destroy cubeMesh
   App.destroy (fromJust r)
+  where
+    makeActors mesh mat posList =
+      Prelude.map
+        (\(x, y, z) -> Actor mesh (V.translate (vec3 x y z) mat))
+        posList
 
 -- | The camera object.
 data Camera = Camera
@@ -116,7 +150,7 @@ renderingLoop window actors = do
   GLFW.setCursorInputMode window GLFW.CursorInputMode'Disabled
   curPos <- GLFW.getCursorPos window
   camera <- newIORef $ Main.Camera
-    { pos = vec3 250 250 500
+    { pos = vec3 250 250 (-500)
     , target = vec3 0 0 0
     , up = vec3 0 1 0
     , cur = curPos

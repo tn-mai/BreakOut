@@ -8,6 +8,7 @@ module Mesh
   , draw
   , destroy
   , NearZero
+  , vec4
   )
  where
 
@@ -40,6 +41,14 @@ data Object = Object
   , mvpUniformLocation :: Shader.UniformLocation -- | Model-View-Projection matrix.
   , mvUniformLocation :: Shader.UniformLocation -- | Model-View matrix(for lighting).
   , normalUniformLocation :: Shader.UniformLocation -- | Normal matrix(for lighting).
+  , material :: Material
+  }
+
+defaultMaterial :: Material
+defaultMaterial = Material
+  { baseColor = vec4 0.8 0.8 0.9 1
+  , metallic = 0.5
+  , roughness = 0.1
   }
 
 -- | Get the pointer of buffer from the offset.
@@ -119,6 +128,7 @@ create vertices indices = do
     , mvpUniformLocation = mvpLocation
     , mvUniformLocation = mvLocation
     , normalUniformLocation = normalLocation
+    , material = defaultMaterial
     }
 
 lightSource :: [LightSource]
@@ -144,13 +154,6 @@ lightSource =
       , position = vec4 (-300) 300 (-300) 0
       }
   ]
-
-material :: Material
-material = Material
-  { baseColor = vec4 0.8 0.5 0.1 1
-  , metallic = 0.5
-  , roughness = 0.1
-  }
 
 instance NearZero CFloat where
   nearZero 0 = True
@@ -196,8 +199,8 @@ draw obj modelMatrix viewMatrix projectionMatrix = do
     glGenBuffers 1 ptr
     buffer <- peek ptr
     glBindBuffer gl_UNIFORM_BUFFER buffer
-    with material $ \mat -> do
-      glBufferData gl_UNIFORM_BUFFER (fromIntegral (sizeOf material)) mat gl_DYNAMIC_DRAW
+    with (material obj) $ \mat -> do
+      glBufferData gl_UNIFORM_BUFFER (fromIntegral (sizeOf (material obj))) mat gl_DYNAMIC_DRAW
     glBindBuffer gl_UNIFORM_BUFFER 0
     glBindBufferBase gl_UNIFORM_BUFFER bufferId buffer
     idx <- withGLstring "Material" $ glGetUniformBlockIndex (Shader.programId $ program obj)

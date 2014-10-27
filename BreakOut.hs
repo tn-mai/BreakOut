@@ -17,6 +17,21 @@ import Control.Concurrent (threadDelay)
 import System.Environment
 import System.Exit
 import Foreign.C.Types
+import LightSource
+
+materials :: [Material]
+materials =
+  [ Material
+    { baseColor = Mesh.vec4 0.8 0.5 0.1 1
+    , metallic = 0.5
+    , roughness = 0.1
+    }
+  , Material
+    { baseColor = Mesh.vec4 0.2 0.6 0.5 1
+    , metallic = 0.1
+    , roughness = 0.4
+    }
+  ]
 
 main :: IO ()
 main = do
@@ -174,11 +189,13 @@ display camera mesh = do
   let viewMatrix = Main.lookAt (pos c) (target c) (up c)
       projMatrix = (V.perspective 0.1 2000 (pi / 4) (4 / 3)) :: Mat44 GLfloat
 
-  Mesh.draw mesh V.identity viewMatrix projMatrix
+  let meshA = mesh { Mesh.material = materials !! 0 }
+  Mesh.draw meshA V.identity viewMatrix projMatrix
 
   -- translation test.
+  let meshB = mesh { Mesh.material = materials !! 1 }
   let v2 = 300 :. 0 :. 0 :. () :: Vec3 CFloat
       m2 = V.translate v2 (V.identity :: Mat44 CFloat)
-  Mesh.draw mesh m2 viewMatrix projMatrix
+  Mesh.draw meshB m2 viewMatrix projMatrix
 
   glFlush

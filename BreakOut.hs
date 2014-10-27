@@ -31,6 +31,7 @@ vec4 = Mesh.vec4
 data Actor = Actor
   { object :: Mesh.Object
   , matrix :: V.Mat44 GLfloat
+  , position :: Vec3 GLfloat
   }
 
 -- | the light source list.
@@ -39,22 +40,22 @@ lightSource =
   [ LightSource
       { diffuse =  vec4 1000000 1000000 1000000 1
       , specular = vec4  200000  500000  700000 1
-      , position = vec4 (-300) 300 (-300) 1
+      , LightSource.position = vec4 (-300) 300 (-300) 1
       }
   , LightSource
       { diffuse =  vec4 0 0 1000000 1
       , specular = vec4  20000  10000  10000 1
-      , position = vec4 300 (-300) 300 1
+      , LightSource.position = vec4 300 (-300) 300 1
       }
   , LightSource
       { diffuse =  vec4 1000000 1000000 1000000 1
       , specular = vec4  500000  700000  900000 1
-      , position = vec4 (-300) 300 (-300) 0
+      , LightSource.position = vec4 (-300) 300 (-300) 0
       }
   , LightSource
       { diffuse =  vec4 1000000 1000000 1000000 1
       , specular = vec4  500000  700000  900000 1
-      , position = vec4 (-300) 300 (-300) 0
+      , LightSource.position = vec4 (-300) 300 (-300) 0
       }
   ]
 
@@ -132,7 +133,7 @@ main = do
   where
     makeActors mesh mat posList =
       Prelude.map
-        (\(x, y, z) -> Actor mesh (V.translate (vec3 x y z) mat))
+        (\(x, y, z) -> Actor mesh mat (vec3 x y z))
         posList
 
 -- | The camera object.
@@ -246,6 +247,6 @@ display camera actors = do
   where
     drawMesh :: Mat44 GLfloat -> Mat44 GLfloat -> [Actor] -> IO ()
     drawMesh _ _ [] = return ()
-    drawMesh viewMatrix projMatrix (Actor mesh mat:xs) = do
-      Mesh.draw mesh mat viewMatrix projMatrix
+    drawMesh viewMatrix projMatrix (Actor mesh mat pos:xs) = do
+      Mesh.draw mesh (V.translate pos mat) viewMatrix projMatrix
       drawMesh viewMatrix projMatrix xs

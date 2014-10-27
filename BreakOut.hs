@@ -69,7 +69,7 @@ materials =
   , Material
     { baseColor = Mesh.vec4 0.2 0.6 0.5 1
     , metallic = 0.1
-    , roughness = 0.4
+    , roughness = 0.6
     }
   ]
 
@@ -79,84 +79,21 @@ main = do
   r <- App.create progName 800 600
   when (isNothing r) exitFailure
 
-  {--
-       top
-           back
-        6---7
-  left /|  /|
-      / 5-/-4
-     3---2 / right
-     |/  |/
-     0---1
-  front
-       bottom
-
-  (position x y z) (normal x y z) (color r g b a)
-  --}
-  let vertices0 = 
-        -- front
-        [ (-100), (-100), ( 100), ( 0.0), ( 0.0), ( 1.0), 1.0, 1.0, 1.0, 1.0
-        , ( 100), (-100), ( 100), ( 0.0), ( 0.0), ( 1.0), 1.0, 1.0, 1.0, 1.0
-        , ( 100), ( 100), ( 100), ( 0.0), ( 0.0), ( 1.0), 1.0, 1.0, 1.0, 1.0
-        , (-100), ( 100), ( 100), ( 0.0), ( 0.0), ( 1.0), 1.0, 1.0, 1.0, 1.0
-
-        -- back
-        , ( 100), (-100), (-100), ( 0.0), ( 0.0), (-1.0), 1.0, 1.0, 1.0, 1.0
-        , (-100), (-100), (-100), ( 0.0), ( 0.0), (-1.0), 1.0, 1.0, 1.0, 1.0
-        , (-100), ( 100), (-100), ( 0.0), ( 0.0), (-1.0), 1.0, 1.0, 1.0, 1.0
-        , ( 100), ( 100), (-100), ( 0.0), ( 0.0), (-1.0), 1.0, 1.0, 1.0, 1.0
-
-        -- right
-        , ( 100), (-100), ( 100), ( 1.0), ( 0.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
-        , ( 100), (-100), (-100), ( 1.0), ( 0.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
-        , ( 100), ( 100), (-100), ( 1.0), ( 0.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
-        , ( 100), ( 100), ( 100), ( 1.0), ( 0.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
-
-        -- left
-        , (-100), (-100), (-100), (-1.0), ( 0.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
-        , (-100), (-100), ( 100), (-1.0), ( 0.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
-        , (-100), ( 100), ( 100), (-1.0), ( 0.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
-        , (-100), ( 100), (-100), (-1.0), ( 0.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
-
-        -- top
-        , (-100), ( 100), ( 100), ( 0.0), ( 1.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
-        , ( 100), ( 100), ( 100), ( 0.0), ( 1.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
-        , ( 100), ( 100), (-100), ( 0.0), ( 1.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
-        , (-100), ( 100), (-100), ( 0.0), ( 1.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
-
-        -- bottom
-        , (-100), (-100), (-100), ( 0.0), (-1.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
-        , ( 100), (-100), (-100), ( 0.0), (-1.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
-        , ( 100), (-100), ( 100), ( 0.0), (-1.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
-        , (-100), (-100), ( 100), ( 0.0), (-1.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
-        ] :: [GLfloat]
-
-  let indices0 =
-        [ 2, 1, 0, 0, 3, 2
-        , 6, 5, 4, 4, 7, 6
-        ,10, 9, 8, 8,11,10
-        ,14,13,12,12,15,14
-        ,18,17,16,16,19,18
-        ,22,21,20,20,23,22
-        ] :: [GLushort]
-
-  mesh0 <- Mesh.create vertices0 indices0
-  mesh1 <- Mesh.create BarMesh.vertices BarMesh.indices
-  let meshA = mesh0 { Mesh.material = materials !! 0 }
-      meshB = mesh0 { Mesh.material = materials !! 1 }
-      meshC = mesh1 { Mesh.material = materials !! 1 }
-      v2 = 300 :. 0 :. 0 :. () :: Vec3 CFloat
-      m2 = V.translate v2 (V.identity :: Mat44 CFloat)
-      vC = vec3 0 300 300 :: Vec3 CFloat
-      mC = V.translate vC (V.identity :: Mat44 CFloat)
+  cubeMesh <- Mesh.create BarMesh.chamferedCubeVertices BarMesh.chamferedCubeIndices
+  let identityMatrix = V.identity :: Mat44 CFloat
+      meshA = cubeMesh { Mesh.material = materials !! 0 }
+      meshB = cubeMesh { Mesh.material = materials !! 1 }
+      meshC = cubeMesh { Mesh.material = materials !! 1 }
+      mA = V.scale (vec4 10 10 10 1) identityMatrix
+      mB = V.translate (vec3 300 0 0) $ V.scale (vec4 10 10 10 1) identityMatrix
+      mC = V.translate (vec3 0 300 300) identityMatrix
       actors =
-        [ Actor meshA V.identity
-        , Actor meshB m2
+        [ Actor meshA mA
+        , Actor meshB mB
         , Actor meshC mC
         ]
   renderingLoop (fromJust r) actors
-  Mesh.destroy mesh1
-  Mesh.destroy mesh0
+  Mesh.destroy cubeMesh
   App.destroy (fromJust r)
 
 data Camera = Camera

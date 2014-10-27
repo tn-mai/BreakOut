@@ -6,6 +6,7 @@ module Main where
 import qualified App as App
 import qualified Mesh as Mesh
 import qualified Shader as Shader
+import qualified BarMesh as BarMesh
 import LightSource
 
 import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
@@ -129,6 +130,7 @@ main = do
         , ( 100), (-100), ( 100), ( 0.0), (-1.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
         , (-100), (-100), ( 100), ( 0.0), (-1.0), ( 0.0), 1.0, 1.0, 1.0, 1.0
         ] :: [GLfloat]
+
   let indices0 =
         [ 2, 1, 0, 0, 3, 2
         , 6, 5, 4, 4, 7, 6
@@ -137,16 +139,23 @@ main = do
         ,18,17,16,16,19,18
         ,22,21,20,20,23,22
         ] :: [GLushort]
+
   mesh0 <- Mesh.create vertices0 indices0
+  mesh1 <- Mesh.create BarMesh.vertices BarMesh.indices
   let meshA = mesh0 { Mesh.material = materials !! 0 }
       meshB = mesh0 { Mesh.material = materials !! 1 }
+      meshC = mesh1 { Mesh.material = materials !! 1 }
       v2 = 300 :. 0 :. 0 :. () :: Vec3 CFloat
       m2 = V.translate v2 (V.identity :: Mat44 CFloat)
+      vC = vec3 0 300 300 :: Vec3 CFloat
+      mC = V.translate vC (V.identity :: Mat44 CFloat)
       actors =
         [ Actor meshA V.identity
         , Actor meshB m2
+        , Actor meshC mC
         ]
   renderingLoop (fromJust r) actors
+  Mesh.destroy mesh1
   Mesh.destroy mesh0
   App.destroy (fromJust r)
 

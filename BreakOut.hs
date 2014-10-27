@@ -26,6 +26,11 @@ import Foreign.Storable
 
 vec4 = Mesh.vec4
 
+data Actor = Actor
+  { object :: Mesh.Object
+  , matrix :: V.Mat44 GLfloat
+  }
+
 lightSource :: [LightSource]
 lightSource =
   [ LightSource
@@ -133,7 +138,15 @@ main = do
         ,22,21,20,20,23,22
         ] :: [GLushort]
   mesh0 <- Mesh.create vertices0 indices0
-  renderingLoop (fromJust r) mesh0
+  let meshA = mesh0 { Mesh.material = materials !! 0 }
+      meshB = mesh0 { Mesh.material = materials !! 1 }
+      v2 = 300 :. 0 :. 0 :. () :: Vec3 CFloat
+      m2 = V.translate v2 (V.identity :: Mat44 CFloat)
+      actors =
+        [ Actor meshA V.identity
+        , Actor meshB m2
+        ]
+  renderingLoop (fromJust r) actors
   Mesh.destroy mesh0
   App.destroy (fromJust r)
 
@@ -145,8 +158,8 @@ data Camera = Camera
   , shininess :: GLfloat
   }
 
-renderingLoop :: GLFW.Window -> Mesh.Object -> IO ()
-renderingLoop window mesh = do
+renderingLoop :: GLFW.Window -> [Actor] -> IO ()
+renderingLoop window actors = do
   GLFW.setCursorInputMode window GLFW.CursorInputMode'Disabled
   curPos <- GLFW.getCursorPos window
   camera <- newIORef $ Main.Camera
@@ -164,7 +177,7 @@ renderingLoop window mesh = do
 
     loop camera = (GLFW.windowShouldClose window) >>= (flip unless) (go camera)
     go camera = do
-      display camera mesh
+      display camera actors
       GLFW.swapBuffers window
       GLFW.pollEvents
 
@@ -214,8 +227,9 @@ lookAt eye target up = x :. y :. z :. h :. ()
     z = V.snoc (-forward) (V.dot forward eye)
     h = 0 :. 0 :. 0 :. 1 :. ()
 
-display :: IORef Camera -> Mesh.Object -> IO ()
-display camera mesh = do
+display :: IORef Camera -> [Actor] -> IO ()
+display camera [] = return ()
+display camera actors = do
   glClearColor 0.1 0.4 0.2 1
   glClear $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
 
@@ -224,7 +238,7 @@ display camera mesh = do
       projMatrix = (V.perspective 0.1 2000 (pi / 4) (4 / 3)) :: Mat44 GLfloat
 
   let newLS = Prelude.map (toViewSpace viewMatrix) lightSource
-
+      progId = Shader.programId . Mesh.program . object $ actors !! 0
   alloca $ \ptr -> do
     let bufferId = 7
     glGenBuffers 1 ptr
@@ -234,16 +248,14 @@ display camera mesh = do
       glBufferData gl_UNIFORM_BUFFER (fromIntegral (Prelude.sum $ Prelude.map sizeOf newLS)) ls gl_DYNAMIC_DRAW
     glBindBuffer gl_UNIFORM_BUFFER 0
     glBindBufferBase gl_UNIFORM_BUFFER bufferId buffer
-    idx <- withGLstring "LightSourceBlock" $ glGetUniformBlockIndex (Shader.programId $ Mesh.program mesh)
-    glUniformBlockBinding (Shader.programId $ Mesh.program mesh) idx bufferId
+    idx <- withGLstring "LightSourceBlock" $ glGetUniformBlockIndex progId
+    glUniformBlockBinding progId idx bufferId
 
-  let meshA = mesh { Mesh.material = materials !! 0 }
-  Mesh.draw meshA V.identity viewMatrix projMatrix
-
-  -- translation test.
-  let meshB = mesh { Mesh.material = materials !! 1 }
-  let v2 = 300 :. 0 :. 0 :. () :: Vec3 CFloat
-      m2 = V.translate v2 (V.identity :: Mat44 CFloat)
-  Mesh.draw meshB m2 viewMatrix projMatrix
-
+  drawMesh viewMatrix projMatrix actors
   glFlush
+  where
+    drawMesh :: Mat44 GLfloat -> Mat44 GLfloat -> [Actor] -> IO ()
+    drawMesh _ _ [] = return ()
+    drawMesh viewMatrix projMatrix (Actor mesh mat:xs) = do
+      Mesh.draw mesh mat viewMatrix projMatrix
+      drawMesh viewMatrix projMatrix xs

@@ -22,17 +22,19 @@ smooth in vec3 pos;
 
 out vec4 fColor;
 
+float G1(float dottedFactor, float k) { return dottedFactor / (dottedFactor * (1 - k) + k); }
+
 void main(void)
 {
   const float pi = 3.14159265358979323846264;
 
   // material parameter
-  vec4 ambient = vec4(0.2, 0.1, 0.2, 1.0);
+  vec4 ambient = vec4(0.2f, 0.1f, 0.15f, 1.0f);
   vec3 Idiff = vec3(0.0, 0.0, 0.0);
   vec3 Ispec = vec3(0.0, 0.0, 0.0);
 
   for (int i = 0; i < 4; ++i) {
-    if (lightSource[i].position.w == 0.0) {
+    if (lightSource[i].position.w == 0.0f) {
       continue;
     }
     vec3 eyeVector = normalize(-pos);
@@ -41,9 +43,9 @@ void main(void)
     vec3 refVector = normalize(reflect(lightVector, normal));
 
     float distance = length(vertexToLight);
-    float attenuation = 1.0 / (distance * distance);
+    float attenuation = 1.0f / (distance * distance);
 
-    Idiff += attenuation * col.xyz * baseColor.xyz * lightSource[i].diffuse.xyz * max(dot(normal, lightVector), 0.0);
+    Idiff += attenuation * col.xyz * baseColor.xyz * lightSource[i].diffuse.xyz * max(dot(normal, lightVector), 0.0f);
 
     // [GGX]
     // D(h) = alpha^2 / ( pi * (dot(n, h)^2 * (alpha^2 - 1) + 1)^2)
@@ -60,17 +62,16 @@ void main(void)
     // h : half vector.
     // F(v, h) = F0 + (1.0 - F0) * 2^(-5.55473*dot(v, h) - 6.98316)*dot(v, h)
     float dotVH = dot(eyeVector, halfVector);
-    float F = metallic + (1.0 - metallic) * pow(2.0, (-5.55473 * dotVH - 6.98316) * dotVH);
+    float F = metallic + (1 - metallic) * pow(2, (-5.55473f * dotVH - 6.98316f) * dotVH);
 
     // k = (roughness + 1)^2 / 8
     // G1(v) = dot(n, v) / dot(n, v) * (1 - k) + k
     // G(l, v, h) = G1(l) * G1(v)
     float k = (roughness + 1) * (roughness + 1) / 8;
     float dotNL = dot(normal, lightVector);
-    float dotNV = dot(normal, eyeVector);
-    float G1 = dotNL / (dotNL * (1 - k) + k);
-    float G2 = dotNV / (dotNV * (1 - k) + k);
-    float G = G1 * G2;
+    if (dotNL < 0.0f) dotNL = min(dotNL, -0.85f); // for removing artifact.
+    float dotNV = max(dot(normal, eyeVector), 0.0001f);
+    float G = G1(dotNL, k) * G1(dotNV, k);
 
     // f(l, v) = D(h) * F(v, h) * G(l, v, h) / (4 * dot(n, l) * dot(n, v))
     float f = (D * F * G) / (4 * dotNL * dotNV);

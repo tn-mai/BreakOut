@@ -5,9 +5,12 @@ module Main where
 
 import qualified App as App
 import qualified Mesh as Mesh
+import qualified Shader as Shader
+import LightSource
 
 import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
 import Graphics.Rendering.OpenGL.Raw
+import Graphics.Rendering.OpenGL.GL.ByteString
 import Data.Maybe (isNothing, fromJust)
 import Data.Bits
 import Data.IORef
@@ -17,7 +20,38 @@ import Control.Concurrent (threadDelay)
 import System.Environment
 import System.Exit
 import Foreign.C.Types
-import LightSource
+import Foreign.Marshal.Alloc
+import Foreign.Marshal.Array
+import Foreign.Storable
+
+vec4 = Mesh.vec4
+
+lightSource :: [LightSource]
+lightSource =
+  [ LightSource
+      { diffuse =  vec4 1000000 1000000 1000000 1
+      , specular = vec4  200000  500000  700000 1
+      , position = vec4 (-300) 300 (-300) 1
+      }
+  , LightSource
+      { diffuse =  vec4 0 0 1000000 1
+      , specular = vec4  20000  10000  10000 1
+      , position = vec4 300 (-300) 300 1
+      }
+  , LightSource
+      { diffuse =  vec4 1000000 1000000 1000000 1
+      , specular = vec4  500000  700000  900000 1
+      , position = vec4 (-300) 300 (-300) 0
+      }
+  , LightSource
+      { diffuse =  vec4 1000000 1000000 1000000 1
+      , specular = vec4  500000  700000  900000 1
+      , position = vec4 (-300) 300 (-300) 0
+      }
+  ]
+
+toViewSpace :: Mat44 GLfloat -> LightSource -> LightSource
+toViewSpace m ls = ls { LightSource.position = V.multmv m (LightSource.position ls) }
 
 materials :: [Material]
 materials =
@@ -188,6 +222,20 @@ display camera mesh = do
   c <- readIORef camera
   let viewMatrix = Main.lookAt (pos c) (target c) (up c)
       projMatrix = (V.perspective 0.1 2000 (pi / 4) (4 / 3)) :: Mat44 GLfloat
+
+  let newLS = Prelude.map (toViewSpace viewMatrix) lightSource
+
+  alloca $ \ptr -> do
+    let bufferId = 7
+    glGenBuffers 1 ptr
+    buffer <- peek ptr
+    glBindBuffer gl_UNIFORM_BUFFER buffer
+    withArray newLS $ \ls -> do
+      glBufferData gl_UNIFORM_BUFFER (fromIntegral (Prelude.sum $ Prelude.map sizeOf newLS)) ls gl_DYNAMIC_DRAW
+    glBindBuffer gl_UNIFORM_BUFFER 0
+    glBindBufferBase gl_UNIFORM_BUFFER bufferId buffer
+    idx <- withGLstring "LightSourceBlock" $ glGetUniformBlockIndex (Shader.programId $ Mesh.program mesh)
+    glUniformBlockBinding (Shader.programId $ Mesh.program mesh) idx bufferId
 
   let meshA = mesh { Mesh.material = materials !! 0 }
   Mesh.draw meshA V.identity viewMatrix projMatrix

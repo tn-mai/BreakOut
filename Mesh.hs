@@ -131,36 +131,9 @@ create vertices indices = do
     , material = defaultMaterial
     }
 
-lightSource :: [LightSource]
-lightSource =
-  [ LightSource
-      { diffuse =  vec4 1000000 1000000 1000000 1
-      , specular = vec4  200000  500000  700000 1
-      , position = vec4 (-300) 300 (-300) 1
-      }
-  , LightSource
-      { diffuse =  vec4 0 0 1000000 1
-      , specular = vec4  20000  10000  10000 1
-      , position = vec4 300 (-300) 300 1
-      }
-  , LightSource
-      { diffuse =  vec4 1000000 1000000 1000000 1
-      , specular = vec4  500000  700000  900000 1
-      , position = vec4 (-300) 300 (-300) 0
-      }
-  , LightSource
-      { diffuse =  vec4 1000000 1000000 1000000 1
-      , specular = vec4  500000  700000  900000 1
-      , position = vec4 (-300) 300 (-300) 0
-      }
-  ]
-
 instance NearZero CFloat where
   nearZero 0 = True
   nearZero _ = False
-
-toViewSpace :: Mat44 GLfloat -> LightSource -> LightSource
-toViewSpace m ls = ls { LightSource.position = Vec.multmv m (LightSource.position ls) }
 
 -- | Draw the object.
 draw :: Object -> Mat44 GLfloat -> Mat44 GLfloat -> Mat44 GLfloat -> IO ()
@@ -179,20 +152,6 @@ draw obj modelMatrix viewMatrix projectionMatrix = do
   with mvpMatrix $ glUniformMatrix4fv (fromIntegral mvpLocation) 1 (fromBool True) . castPtr
   with mvMatrix $ glUniformMatrix4fv (fromIntegral mvLocation) 1 (fromBool True) . castPtr
   with normalMatrix $ glUniformMatrix4fv (fromIntegral normalLocation) 1 (fromBool True) . castPtr
-
-  let newLS = Prelude.map (toViewSpace viewMatrix) lightSource
-
-  alloca $ \ptr -> do
-    let bufferId = 7
-    glGenBuffers 1 ptr
-    buffer <- peek ptr
-    glBindBuffer gl_UNIFORM_BUFFER buffer
-    withArray newLS $ \ls -> do
-      glBufferData gl_UNIFORM_BUFFER (fromIntegral (Prelude.sum $ Prelude.map sizeOf newLS)) ls gl_DYNAMIC_DRAW
-    glBindBuffer gl_UNIFORM_BUFFER 0
-    glBindBufferBase gl_UNIFORM_BUFFER bufferId buffer
-    idx <- withGLstring "LightSourceBlock" $ glGetUniformBlockIndex (Shader.programId $ program obj)
-    glUniformBlockBinding (Shader.programId (program obj)) idx bufferId
 
   alloca $ \ptr -> do
     let bufferId = 6

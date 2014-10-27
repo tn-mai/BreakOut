@@ -127,7 +127,7 @@ main = do
         (V.scale (vec4 0.5 0.5 0.5 1) identityMatrix)
         $ [(125, 100, -30)]
 
-  renderingLoop (fromJust r) $ ballActor ++ paddleActor ++ blockActors ++ floorActors ++ wallActors ++ sideWallActors
+  renderingLoop (fromJust r) $ paddleActor ++ ballActor ++ blockActors ++ floorActors ++ wallActors ++ sideWallActors
   Mesh.destroy cubeMesh
   App.destroy (fromJust r)
   where
@@ -141,35 +141,42 @@ data Camera = Camera
   { pos :: Vec3 GLfloat
   , target :: Vec3 GLfloat
   , up :: Vec3 GLfloat
-  , cur :: (Double, Double) -- for mouse movement.
   , shininess :: GLfloat
+  }
+
+data GameData = GameData
+  { camera :: Camera
+  , cur :: (Double, Double) -- for mouse movement.
   }
 
 -- | The main loop in the game.
 renderingLoop :: GLFW.Window -> [Actor] -> IO ()
-renderingLoop window actors = do
+renderingLoop window initialActors = do
   GLFW.setCursorInputMode window GLFW.CursorInputMode'Disabled
   curPos <- GLFW.getCursorPos window
-  camera <- newIORef $ Main.Camera
-    { pos = vec3 250 250 (-500)
-    , target = vec3 0 0 0
-    , up = vec3 0 1 0
+  gameData <- newIORef $ Main.GameData
+    { camera = Camera
+        { pos = vec3 (125) (-100) (-450)
+        , target = vec3 (125) (150) (0)
+        , up = vec3 0 1 0
+        , shininess = 64
+        }
     , cur = curPos
-    , shininess = 64
     }
-  loop camera
+  loop initialActors gameData
   where
     keyAction key taction faction = do
       keyState <- GLFW.getKey window key
       if (keyState == GLFW.KeyState'Pressed) then taction else faction
 
-    loop camera = (GLFW.windowShouldClose window) >>= (flip unless) (go camera)
-    go camera = do
-      display camera actors
+    loop actors gameData = (GLFW.windowShouldClose window) >>= (flip unless) (go actors gameData)
+    go actors gameData = do
+      gd <- readIORef gameData
+      display (camera gd) actors
       GLFW.swapBuffers window
       GLFW.pollEvents
 
-      c <- readIORef camera
+{--
       let zeroVector = vec3 0 0 0
       let targetDistance = (target c) - (pos c)
           frontVector = (V.normalize targetDistance) * 2
@@ -194,12 +201,22 @@ renderingLoop window actors = do
         { pos = (pos c) + movement
         , target = newTarget + (pos c) + movement
         , cur = (newX, newY)
-        , shininess = (shininess c) + su + sd
         }
+--}
+      (newX, newY) <- GLFW.getCursorPos window
+      let (prevX, _) = cur gd
+          delta = realToFrac ((newX - prevX) * (-1)) :: GLfloat
+          paddle = actors !! 0
+          (x :. y :. z :. ()) = Main.position paddle
+          newPaddleX = max 20 . min 230 $ (x + delta)
+          newActors = paddle { Main.position = vec3 newPaddleX y z  } : (Prelude.drop 1 actors)
+
+      writeIORef gameData $ gd { cur = (newX, newY) }
+
       isExit <- GLFW.getKey window GLFW.Key'Escape
       when (isExit /= GLFW.KeyState'Pressed) $ do
         threadDelay 10000
-        loop camera
+        loop newActors gameData
 
 -- | Make the 3 coordinate vector.
 vec3 :: forall a a1 a2. a -> a1 -> a2 -> a :. (a1 :. (a2 :. ()))
@@ -218,14 +235,13 @@ lookAt eye target up = x :. y :. z :. h :. ()
     h = 0 :. 0 :. 0 :. 1 :. ()
 
 -- | Render all of the actors.
-display :: IORef Camera -> [Actor] -> IO ()
+display :: Camera -> [Actor] -> IO ()
 display camera [] = return ()
 display camera actors = do
   glClearColor 0.1 0.4 0.2 1
   glClear $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
 
-  c <- readIORef camera
-  let viewMatrix = Main.lookAt (pos c) (target c) (up c)
+  let viewMatrix = Main.lookAt (pos camera) (target camera) (up camera)
       projMatrix = (V.perspective 0.1 2000 (pi / 4) (4 / 3)) :: Mat44 GLfloat
 
   let newLS = Prelude.map (toViewSpace viewMatrix) lightSource

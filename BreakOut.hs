@@ -127,7 +127,7 @@ main = do
         (V.scale (vec4 0.5 0.5 0.5 1) identityMatrix)
         $ [(125, 100, -30)]
 
-  renderingLoop (fromJust r) $ paddleActor ++ ballActor ++ blockActors ++ floorActors ++ wallActors ++ sideWallActors
+  renderingLoop (fromJust r) $ paddleActor ++ ballActor ++ floorActors ++ wallActors ++ sideWallActors ++ blockActors
   Mesh.destroy cubeMesh
   App.destroy (fromJust r)
   where
@@ -194,13 +194,17 @@ renderingLoop window initialActors = do
             if boundPaddle (newBallX, newBallY) (newSpeedX, newSpeedY) (x, y)
             then (newBallX, newBallY, newSpeedX, (-newSpeedY))
             else (newBallX, newBallY, newSpeedX, newSpeedY)
-          newActors = paddle { Main.position = vec3 newPaddleX y z  }
-                    : ball { Main.position = vec3 newBallX' newBallY' bz }
-                    : (Prelude.drop 2 actors)
+          (hitX, hitY, nonHitBlocks) =
+            intersectBlock (Line newBallX' newBallY' (newBallX' + newSpeedX') (newBallY' + newSpeedY')) (Prelude.drop 78 actors)
+          newActors =
+            ( paddle { Main.position = vec3 newPaddleX y z  }
+            : ball { Main.position = vec3 newBallX' newBallY' bz }
+            : Prelude.take 76 (Prelude.drop 2 actors)
+            ) ++ nonHitBlocks
 
       writeIORef gameData $ gd
         { cur = (newX, newY)
-        , ballSpeed = (newSpeedX', newSpeedY')
+        , ballSpeed = (if hitX then (-newSpeedX') else newSpeedX', if hitY then (-newSpeedY') else newSpeedY')
         }
 
       isExit <- GLFW.getKey window GLFW.Key'Escape
@@ -228,6 +232,39 @@ renderingLoop window initialActors = do
       where
         pTop = py + 10
         nx = bx + (sx * (by - py) / sy)
+
+intersectBlock :: Line GLfloat -> [Actor] -> (Bool, Bool, [Actor])
+intersectBlock _ [] = (False, False, [])
+intersectBlock ballLine (blockActor : xs) =
+  if (intersect ballLine topLine) || (intersect ballLine bottomLine)
+  then (hitX, True, nonHitBlocks)
+  else
+    if (intersect ballLine leftLine) || (intersect ballLine rightLine)
+    then (True, hitY, nonHitBlocks)
+    else (hitX, hitY, blockActor : nonHitBlocks)
+  where
+    (bx :. by :. _ :. ()) = Main.position blockActor
+    topLine = Line (bx - 25) (by + 12.5) (bx + 25) (by + 12.5)
+    bottomLine = Line (bx - 25) (by - 12.5) (bx + 25) (by - 12.5)
+    leftLine = Line (bx - 25) (by - 12.5) (bx - 25) (by + 12.5)
+    rightLine = Line (bx + 25) (by + 12.5) (bx + 25) (by - 12.5)
+    (hitX, hitY, nonHitBlocks) = intersectBlock ballLine xs
+
+data Line a = Line a a a a
+
+intersect :: Line GLfloat -> Line GLfloat -> Bool
+intersect (Line ax ay bx by) (Line cx cy dx dy) =
+  if ((crossProduct ac ab) * (crossProduct ad ab) <= 0) && ((crossProduct ca cd) * (crossProduct cb cd) <= 0)
+  then True
+  else False
+  where
+    ab = (bx - ax) :. (by - ay) :. ()
+    cd = (dx - cx) :. (dy - cy) :. ()
+    ac = (cx - ax) :. (cy - ay) :. ()
+    ad = (dx - cx) :. (dy - cy) :. ()
+    ca = (ax - cx) :. (ay - cy) :. ()
+    cb = (bx - cx) :. (by - cy) :. ()
+    crossProduct (x0 :. y0 :. ()) (x1 :. y1 :. ()) = x0 * y1 - y0 * x1
 
 -- | Make the 3 coordinate vector.
 vec3 :: forall a a1 a2. a -> a1 -> a2 -> a :. (a1 :. (a2 :. ()))

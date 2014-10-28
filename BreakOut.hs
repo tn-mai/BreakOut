@@ -244,10 +244,11 @@ intersectBlock ballLine (blockActor : xs) =
     else (hitX, hitY, blockActor : nonHitBlocks)
   where
     (bx :. by :. _ :. ()) = Main.position blockActor
-    topLine = Line (bx - 25) (by + 12.5) (bx + 25) (by + 12.5)
-    bottomLine = Line (bx - 25) (by - 12.5) (bx + 25) (by - 12.5)
-    leftLine = Line (bx - 25) (by - 12.5) (bx - 25) (by + 12.5)
-    rightLine = Line (bx + 25) (by + 12.5) (bx + 25) (by - 12.5)
+    (halfW, halfH) = (25, 12.5)
+    topLine    = Line (bx - halfW) (by + halfH) (bx + halfW) (by + halfH)
+    rightLine  = Line (bx + halfW) (by + halfH) (bx + halfW) (by - halfH)
+    bottomLine = Line (bx + halfW) (by - halfH) (bx - halfW) (by - halfH)
+    leftLine   = Line (bx - halfW) (by - halfH) (bx - halfW) (by + halfH)
     (hitX, hitY, nonHitBlocks) = intersectBlock ballLine xs
 
 data Line a = Line a a a a

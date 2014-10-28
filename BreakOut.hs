@@ -254,18 +254,13 @@ intersectBlock ballLine@(Line x0 y0 x1 y1) (blockActor : xs) =
 data Line a = Line a a a a
 
 intersect :: Line GLfloat -> Line GLfloat -> Bool
-intersect (Line ax ay bx by) (Line cx cy dx dy) =
-  if ((crossProduct ac ab) * (crossProduct ad ab) <= 0) && ((crossProduct ca cd) * (crossProduct cb cd) <= 0)
-  then True
+intersect (Line bx by cx cy) (Line px py qx qy) =
+  if ((bx - cx) * (py - by) + (by - cy) * (bx - px)) * ((bx - cx) * (qy - by) + (by - cy) * (bx - qx)) < (0 :: GLfloat)
+  then
+    if ((px - qx) * (by - py) + (py - qy) * (px - bx)) * ((px - qx) * (cy - py) + (py - qy) * (px - cx)) < (0 :: GLfloat)
+    then True
+    else False
   else False
-  where
-    ab = (bx - ax) :. (by - ay) :. ()
-    cd = (dx - cx) :. (dy - cy) :. ()
-    ac = (cx - ax) :. (cy - ay) :. ()
-    ad = (dx - ax) :. (dy - ay) :. ()
-    ca = (ax - cx) :. (ay - cy) :. ()
-    cb = (bx - cx) :. (by - cy) :. ()
-    crossProduct (x0 :. y0 :. ()) (x1 :. y1 :. ()) = x0 * y1 - y0 * x1
 
 -- | Make the 3 coordinate vector.
 vec3 :: forall a a1 a2. a -> a1 -> a2 -> a :. (a1 :. (a2 :. ()))

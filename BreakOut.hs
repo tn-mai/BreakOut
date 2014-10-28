@@ -235,11 +235,11 @@ renderingLoop window initialActors = do
 
 intersectBlock :: Line GLfloat -> [Actor] -> (Bool, Bool, [Actor])
 intersectBlock _ [] = (False, False, [])
-intersectBlock ballLine (blockActor : xs) =
-  if (intersect ballLine topLine) || (intersect ballLine bottomLine)
+intersectBlock ballLine@(Line x0 y0 x1 y1) (blockActor : xs) =
+  if ((y1 - y0) < 0 && intersect ballLine topLine) || ((y1 - y0) >= 0 && intersect ballLine bottomLine)
   then (hitX, True, nonHitBlocks)
   else
-    if (intersect ballLine leftLine) || (intersect ballLine rightLine)
+    if ((x1 - x0) >= 0 && intersect ballLine leftLine) || ((x1 - x0) < 0 && intersect ballLine rightLine)
     then (True, hitY, nonHitBlocks)
     else (hitX, hitY, blockActor : nonHitBlocks)
   where

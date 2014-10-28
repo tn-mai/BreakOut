@@ -195,7 +195,7 @@ renderingLoop window initialActors = do
             then (newBallX, newBallY, newSpeedX, (-newSpeedY))
             else (newBallX, newBallY, newSpeedX, newSpeedY)
           (hitX, hitY, nonHitBlocks) =
-            intersectBlock (Line bx by (bx + speedX) (by + speedY)) (Prelude.drop 78 actors)
+            intersectBlock (Line bx by (bx + speedX * 3) (by + speedY * 3)) (Prelude.drop 78 actors)
           newActors =
             ( paddle { Main.position = vec3 newPaddleX y z  }
             : ball { Main.position = vec3 newBallX' newBallY' bz }

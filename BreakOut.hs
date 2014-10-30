@@ -22,6 +22,7 @@ import Control.Exception
 import Control.Concurrent (threadDelay)
 import System.Environment
 import System.Exit
+import System.IO
 import Foreign.C.Types
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
@@ -170,6 +171,10 @@ loadTexture path = do
         return texture;
       texId <- peek ptr
       return . Right $ TextureObject texId
+
+unloadTexture :: TextureObject -> IO ()
+unloadTexture texture = do
+  withArrayLen [(textureID texture)] $ glDeleteTextures . fromIntegral
 
 -- | The camera object.
 data Camera = Camera

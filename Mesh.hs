@@ -87,7 +87,7 @@ create vertices indices = do
       vColor = AttribLocation 2
       offsetPosition = 0
       offsetNormal = offsetPosition + numPositionElements
-      offsetColor = offsetNormal + numColorElements
+      offsetColor = offsetNormal + numNormalElements
       sizeElement = sizeOf $ Prelude.head vertices
       sizeVertex = fromIntegral $ sizeElement * (numPositionElements + numNormalElements + numColorElements)
 

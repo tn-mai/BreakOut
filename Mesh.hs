@@ -9,6 +9,8 @@ module Mesh
   , destroy
   , NearZero
   , vec4
+  , createBuffer
+  , bufferOffset
   )
  where
 

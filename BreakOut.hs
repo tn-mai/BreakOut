@@ -7,9 +7,11 @@ import qualified App as App
 import qualified Mesh as Mesh
 import qualified Shader as Shader
 import qualified BarMesh as BarMesh
-import LightSource
+import qualified LightSource as LS
 
 import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
+--import Graphics.Rendering.OpenGL
+import Graphics.Rendering.OpenGL hiding (TextureObject, Line)
 import Graphics.Rendering.OpenGL.Raw
 import Graphics.Rendering.OpenGL.GL.ByteString
 import Data.Maybe (isNothing, fromJust)
@@ -39,61 +41,61 @@ data Actor = Actor
   }
 
 -- | the light source list.
-lightSource :: [LightSource]
+lightSource :: [LS.LightSource]
 lightSource =
-  [ LightSource
-      { diffuse =  vec4 1000000 1000000 1000000 1
-      , specular = vec4  200000  500000  700000 1
-      , LightSource.position = vec4 (-300) 300 (-300) 1
+  [ LS.LightSource
+      { LS.diffuse =  vec4 1000000 1000000 1000000 1
+      , LS.specular = vec4  200000  500000  700000 1
+      , LS.position = vec4 (-300) 300 (-300) 1
       }
-  , LightSource
-      { diffuse =  vec4 0 0 1000000 1
-      , specular = vec4  20000  10000  10000 1
-      , LightSource.position = vec4 300 (-300) 300 1
+  , LS.LightSource
+      { LS.diffuse =  vec4 0 0 1000000 1
+      , LS.specular = vec4  20000  10000  10000 1
+      , LS.position = vec4 300 (-300) 300 1
       }
-  , LightSource
-      { diffuse =  vec4 1000000 1000000 1000000 1
-      , specular = vec4  500000  700000  900000 1
-      , LightSource.position = vec4 (-300) 300 (-300) 0
+  , LS.LightSource
+      { LS.diffuse =  vec4 1000000 1000000 1000000 1
+      , LS.specular = vec4  500000  700000  900000 1
+      , LS.position = vec4 (-300) 300 (-300) 0
       }
-  , LightSource
-      { diffuse =  vec4 1000000 1000000 1000000 1
-      , specular = vec4  500000  700000  900000 1
-      , LightSource.position = vec4 (-300) 300 (-300) 0
+  , LS.LightSource
+      { LS.diffuse =  vec4 1000000 1000000 1000000 1
+      , LS.specular = vec4  500000  700000  900000 1
+      , LS.position = vec4 (-300) 300 (-300) 0
       }
   ]
 
 -- | Transform the light source position in the view coordinates.
-toViewSpace :: Mat44 GLfloat -> LightSource -> LightSource
-toViewSpace m ls = ls { LightSource.position = V.multmv m (LightSource.position ls) }
+toViewSpace :: Mat44 GLfloat -> LS.LightSource -> LS.LightSource
+toViewSpace m ls = ls { LS.position = V.multmv m (LS.position ls) }
 
 -- | the material list for any mesh object.
-materials :: [Material]
+materials :: [LS.Material]
 materials =
-  [ Material
-    { baseColor = Mesh.vec4 0.8 0.5 0.1 1
-    , metallic = 0.5
-    , roughness = 0.1
+  [ LS.Material
+    { LS.baseColor = Mesh.vec4 0.8 0.5 0.1 1
+    , LS.metallic = 0.5
+    , LS.roughness = 0.1
     }
-  , Material
-    { baseColor = Mesh.vec4 0.6 0.5 0.4 1
-    , metallic = 0.5
-    , roughness = 0.1
+  , LS.Material
+    { LS.baseColor = Mesh.vec4 0.6 0.5 0.4 1
+    , LS.metallic = 0.5
+    , LS.roughness = 0.1
     }
-  , Material
-    { baseColor = Mesh.vec4 0.8 0.2 0.3 1
-    , metallic = 0.3
-    , roughness = 0.6
+  , LS.Material
+    { LS.baseColor = Mesh.vec4 0.8 0.2 0.3 1
+    , LS.metallic = 0.3
+    , LS.roughness = 0.6
     }
-  , Material
-    { baseColor = Mesh.vec4 0.3 0.9 0.2 1
-    , metallic = 0.1
-    , roughness = 0.6
+  , LS.Material
+    { LS.baseColor = Mesh.vec4 0.3 0.9 0.2 1
+    , LS.metallic = 0.1
+    , LS.roughness = 0.6
     }
-  , Material
-    { baseColor = Mesh.vec4 0.2 0.6 0.5 1
-    , metallic = 0.7
-    , roughness = 0.1
+  , LS.Material
+    { LS.baseColor = Mesh.vec4 0.2 0.6 0.5 1
+    , LS.metallic = 0.7
+    , LS.roughness = 0.1
     }
   ]
 
@@ -149,7 +151,7 @@ textureWrapT = 0x2803 :: GLenum
 
 newtype TextureObject = TextureObject { textureID :: GLuint }
 
-loadTexture :: FilePath -> IO (Either String TextureObject)
+loadTexture :: FilePath -> IO (Either String Main.TextureObject)
 loadTexture path = do
   x <- loadPNGFile path
   case x of
@@ -170,11 +172,14 @@ loadTexture path = do
         glBindTexture gl_TEXTURE_2D 0
         return texture;
       texId <- peek ptr
-      return . Right $ TextureObject texId
+      return . Right $ Main.TextureObject texId
 
-unloadTexture :: TextureObject -> IO ()
+unloadTexture :: Main.TextureObject -> IO ()
 unloadTexture texture = do
   withArrayLen [(textureID texture)] $ glDeleteTextures . fromIntegral
+
+textureUnit :: GLuint -> GLenum
+textureUnit x = 0x84c0 + x
 
 -- | The camera object.
 data Camera = Camera
@@ -188,6 +193,9 @@ data GameData = GameData
   { camera :: Camera
   , cur :: (Double, Double) -- for mouse movement.
   , ballSpeed :: (GLfloat, GLfloat)
+  , asciiShader :: Shader.Program
+  , asciiTexLocation :: Shader.UniformLocation
+  , asciiTex :: Main.TextureObject
   }
 
 -- | The main loop in the game.
@@ -195,6 +203,19 @@ renderingLoop :: GLFW.Window -> [Actor] -> IO ()
 renderingLoop window initialActors = do
   GLFW.setCursorInputMode window GLFW.CursorInputMode'Disabled
   curPos <- GLFW.getCursorPos window
+
+  asciiProgram <- Shader.load 
+    [ Shader.Info gl_VERTEX_SHADER (Shader.FileSource "shaders/bitmapfont.vert")
+    , Shader.Info gl_FRAGMENT_SHADER (Shader.FileSource "shaders/bitmapfont.frag")
+    ]
+  asciiTexLoc <- Shader.uniformLocation asciiProgram "texture"
+
+  eitherTex <- loadTexture "data/ascii.png"
+  case eitherTex of
+    Left e -> hPutStrLn stderr e
+    Right tex -> hPutStrLn stderr "success loading texture."
+  let (Right tex) = eitherTex
+
   gameData <- newIORef $ Main.GameData
     { camera = Camera
         { pos = vec3 (125) (-100) (-450)
@@ -204,7 +225,11 @@ renderingLoop window initialActors = do
         }
     , cur = curPos
     , ballSpeed = (2, 2)
+    , asciiShader = asciiProgram
+    , asciiTexLocation = asciiTexLoc
+    , asciiTex = tex
     }
+
   loop initialActors gameData
   where
     keyAction key taction faction = do
@@ -214,7 +239,7 @@ renderingLoop window initialActors = do
     loop actors gameData = (GLFW.windowShouldClose window) >>= (flip unless) (go actors gameData)
     go actors gameData = do
       gd <- readIORef gameData
-      display (camera gd) actors
+      display gd actors
       GLFW.swapBuffers window
       GLFW.pollEvents
 
@@ -319,13 +344,14 @@ lookAt eye target up = x :. y :. z :. h :. ()
     h = 0 :. 0 :. 0 :. 1 :. ()
 
 -- | Render all of the actors.
-display :: Camera -> [Actor] -> IO ()
-display camera [] = return ()
-display camera actors = do
+display :: GameData -> [Actor] -> IO ()
+display _ [] = return ()
+display gameData actors = do
+  let cam = camera gameData
   glClearColor 0.1 0.4 0.2 1
   glClear $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
 
-  let viewMatrix = Main.lookAt (pos camera) (target camera) (up camera)
+  let viewMatrix = Main.lookAt (pos cam) (target cam) (up cam)
       projMatrix = (V.perspective 0.1 2000 (pi / 4) (4 / 3)) :: Mat44 GLfloat
 
   let newLS = Prelude.map (toViewSpace viewMatrix) lightSource
@@ -342,7 +368,8 @@ display camera actors = do
     idx <- withGLstring "LightSourceBlock" $ glGetUniformBlockIndex progId
     glUniformBlockBinding progId idx bufferId
 
-  drawMesh viewMatrix projMatrix actors
+  -- drawMesh viewMatrix projMatrix actors
+  drawAscii gameData "abc"
   glFlush
   where
     drawMesh :: Mat44 GLfloat -> Mat44 GLfloat -> [Actor] -> IO ()
@@ -350,3 +377,57 @@ display camera actors = do
     drawMesh viewMatrix projMatrix (Actor mesh mat pos:xs) = do
       Mesh.draw mesh (V.translate pos mat) viewMatrix projMatrix
       drawMesh viewMatrix projMatrix xs
+
+    drawAscii :: GameData -> String -> IO ()
+    drawAscii gameData str = do
+      glActiveTexture $ textureUnit 0
+      glBindTexture gl_TEXTURE_2D $ textureID $ asciiTex gameData
+      glUniform1i (asciiTexLocation gameData) 0
+
+      let vertices =
+            [   0, 100, 0, 1, 1, 1, 1, 0, 100
+            , 100, 100, 0, 1, 1, 1, 1, 100, 100
+            ,   0,   0, 0, 1, 1, 1, 1, 0, 0
+            , 100,   0, 0, 1, 1, 1, 1, 100, 0
+            ] :: [GLfloat]
+      vao <- genObjectName
+      vb <- Mesh.createBuffer ArrayBuffer vertices
+      let numPositionElements = 3
+          numColorElements = 4
+          numTexCoordElements = 2
+          vPosition = AttribLocation 0
+          vColor = AttribLocation 2
+          vTexCoord = AttribLocation 3
+          offsetPosition = 0
+          offsetColor = offsetPosition + numPositionElements
+          offsetTexCoord = offsetColor + numColorElements
+          sizeElement = sizeOf $ Prelude.head vertices
+          sizeVertex = fromIntegral $ sizeElement * (numPositionElements + numColorElements + numTexCoordElements)
+      bindVertexArrayObject $= Just vao
+      bindBuffer ArrayBuffer $= Just vb
+      vertexAttribPointer vPosition $=
+        ( ToFloat
+        , VertexArrayDescriptor (fromIntegral numPositionElements) Float sizeVertex (Mesh.bufferOffset (offsetPosition * sizeElement))
+        )
+      vertexAttribArray vPosition $= Enabled
+      vertexAttribPointer vColor $=
+        ( ToFloat
+        , VertexArrayDescriptor (fromIntegral numColorElements) Float sizeVertex (Mesh.bufferOffset (offsetColor * sizeElement))
+        )
+      vertexAttribArray vColor $= Enabled
+      vertexAttribPointer vTexCoord $=
+        ( ToFloat
+        , VertexArrayDescriptor (fromIntegral numColorElements) Float sizeVertex (Mesh.bufferOffset (offsetColor * sizeElement))
+        )
+      vertexAttribArray vTexCoord $= Enabled
+      bindVertexArrayObject $= Nothing
+
+      Shader.useProgram $ Just (asciiShader gameData)
+      bindVertexArrayObject $= Just vao
+
+      drawArrays TriangleStrip 0 4
+
+      bindVertexArrayObject $= Nothing
+      Shader.useProgram Nothing
+      deleteObjectName vb
+      deleteObjectName vao

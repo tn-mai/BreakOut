@@ -15,8 +15,10 @@ import Graphics.Rendering.OpenGL.GL.ByteString
 import Data.Maybe (isNothing, fromJust)
 import Data.Bits
 import Data.IORef
+import Data.Array.Storable
 import Data.Vec as V
 import Control.Monad
+import Control.Exception
 import Control.Concurrent (threadDelay)
 import System.Environment
 import System.Exit
@@ -24,6 +26,7 @@ import Foreign.C.Types
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Storable
+import Codec.Image.PNG
 
 vec4 = Mesh.vec4
 
@@ -135,6 +138,38 @@ main = do
       Prelude.map
         (\(x, y, z) -> Actor mesh mat (vec3 x y z))
         posList
+
+rgb8 = 0x8051 :: GLint
+rgba8 :: GLint
+rgba8 = 0x8058 :: GLint
+unsignedByte = 0x1401 :: GLenum
+textureWrapS = 0x2802 :: GLenum
+textureWrapT = 0x2803 :: GLenum
+
+newtype TextureObject = TextureObject { textureID :: GLuint }
+
+loadTexture :: FilePath -> IO (Either String TextureObject)
+loadTexture path = do
+  x <- loadPNGFile path
+  case x of
+    Left e -> return $ Left e
+    Right img -> do
+      ptr <- alloca $ \texture -> do
+        glGenTextures 1 texture
+        texId <- peek texture
+        glBindTexture gl_TEXTURE_2D texId
+        glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER (fromIntegral gl_LINEAR)
+        glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER (fromIntegral gl_LINEAR)
+        glTexParameteri gl_TEXTURE_2D textureWrapS (fromIntegral gl_CLAMP_TO_EDGE)
+        glTexParameteri gl_TEXTURE_2D textureWrapT (fromIntegral gl_CLAMP_TO_EDGE)
+        let (w, h) = dimensions img
+            (pif, pf) = if hasAlphaChannel img then (rgba8, gl_RGBA) else (rgb8, gl_RGB)
+        withStorableArray (imageData img) $ \ptr ->
+          glTexImage2D gl_TEXTURE_2D 0 pif (fromIntegral w) (fromIntegral h) 0 pf unsignedByte ptr
+        glBindTexture gl_TEXTURE_2D 0
+        return texture;
+      texId <- peek ptr
+      return . Right $ TextureObject texId
 
 -- | The camera object.
 data Camera = Camera

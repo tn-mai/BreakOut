@@ -194,6 +194,7 @@ data GameData = GameData
   , cur :: (Double, Double) -- for mouse movement.
   , ballSpeed :: (GLfloat, GLfloat)
   , score :: Int
+  , actorList :: [Actor]
   , asciiShader :: Shader.Program
   , asciiSampler :: GLuint
   , asciiTexLocation :: Shader.UniformLocation
@@ -237,22 +238,24 @@ renderingLoop window initialActors = do
     , cur = curPos
     , ballSpeed = (2, 2)
     , score = 0
+    , actorList = initialActors
     , asciiShader = asciiProgram
     , asciiSampler = sampler
     , asciiTexLocation = asciiTexLoc
     , asciiTex = tex
     }
 
-  loop initialActors gameData
+  loop gameData
   where
     keyAction key taction faction = do
       keyState <- GLFW.getKey window key
       if (keyState == GLFW.KeyState'Pressed) then taction else faction
 
-    loop actors gameData = (GLFW.windowShouldClose window) >>= (flip unless) (go actors gameData)
-    go actors gameData = do
+    loop gameData = (GLFW.windowShouldClose window) >>= (flip unless) (go gameData)
+    go gameData = do
       gd <- readIORef gameData
-      display gd actors
+      let actors = actorList gd
+      display gd
       GLFW.swapBuffers window
       GLFW.pollEvents
 
@@ -284,12 +287,13 @@ renderingLoop window initialActors = do
         { cur = (newX, newY)
         , ballSpeed = (if hitX then (-newSpeedX') else newSpeedX', if hitY then (-newSpeedY') else newSpeedY')
         , score = (score gd) + if hitX || hitY then 1 else 0
+        , actorList = newActors
         }
 
       isExit <- GLFW.getKey window GLFW.Key'Escape
       when (isExit /= GLFW.KeyState'Pressed) $ do
         threadDelay 10000
-        loop newActors gameData
+        loop gameData
 
     boundWall ballPos speed top bottom =
       let n = ballPos + speed
@@ -387,10 +391,10 @@ stringToVertices str (offx, offy) (sx, sy) (r, g, b, a) =
     unitV = 1 / 16
 
 -- | Render all of the actors.
-display :: GameData -> [Actor] -> IO ()
-display _ [] = return ()
-display gameData actors = do
+display :: GameData -> IO ()
+display gameData = do
   let cam = camera gameData
+      actors = actorList gameData
   glClearColor 0.1 0.4 0.2 1
   glClear $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
 

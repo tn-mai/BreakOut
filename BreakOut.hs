@@ -417,7 +417,7 @@ display gameData actors = do
       vertexAttribArray vColor $= Enabled
       vertexAttribPointer vTexCoord $=
         ( ToFloat
-        , VertexArrayDescriptor (fromIntegral numColorElements) Float sizeVertex (Mesh.bufferOffset (offsetColor * sizeElement))
+        , VertexArrayDescriptor (fromIntegral numTexCoordElements) Float sizeVertex (Mesh.bufferOffset (offsetTexCoord * sizeElement))
         )
       vertexAttribArray vTexCoord $= Enabled
       bindVertexArrayObject $= Nothing

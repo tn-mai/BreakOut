@@ -162,10 +162,8 @@ loadTexture path = do
         glGenTextures 1 texIdPtr
         texId <- peek texIdPtr
         glBindTexture gl_TEXTURE_2D texId
-        glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER (fromIntegral gl_LINEAR)
-        glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER (fromIntegral gl_LINEAR)
-        glTexParameteri gl_TEXTURE_2D textureWrapS (fromIntegral gl_CLAMP_TO_EDGE)
-        glTexParameteri gl_TEXTURE_2D textureWrapT (fromIntegral gl_CLAMP_TO_EDGE)
+        glTexParameteri gl_TEXTURE_2D gl_TEXTURE_BASE_LEVEL 0
+        glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MAX_LEVEL 0
         let (w, h) = dimensions img
             (pif, pf) = if hasAlphaChannel img then (rgba8, gl_RGBA) else (rgb8, gl_RGB)
         withStorableArray (imageData img) $ \ptr ->
@@ -194,6 +192,7 @@ data GameData = GameData
   , cur :: (Double, Double) -- for mouse movement.
   , ballSpeed :: (GLfloat, GLfloat)
   , asciiShader :: Shader.Program
+  , asciiSampler :: GLuint
   , asciiTexLocation :: Shader.UniformLocation
   , asciiTex :: Main.TextureObject
   }
@@ -208,7 +207,16 @@ renderingLoop window initialActors = do
     [ Shader.Info gl_VERTEX_SHADER (Shader.FileSource "shaders/bitmapfont.vert")
     , Shader.Info gl_FRAGMENT_SHADER (Shader.FileSource "shaders/bitmapfont.frag")
     ]
-  asciiTexLoc <- Shader.uniformLocation asciiProgram "texture"
+  asciiTexLoc <- Shader.uniformLocation asciiProgram "texSampler"
+
+  sampler <- allocaArray 1 $ \buf -> do
+    glGenSamplers 1 buf
+    r <- peekArray 1 buf
+    return $ Prelude.head r
+  glSamplerParameteri sampler gl_TEXTURE_MIN_FILTER (fromIntegral gl_LINEAR)
+  glSamplerParameteri sampler gl_TEXTURE_MAG_FILTER (fromIntegral gl_LINEAR)
+  glSamplerParameteri sampler gl_TEXTURE_WRAP_S (fromIntegral gl_REPEAT)
+  glSamplerParameteri sampler gl_TEXTURE_WRAP_T (fromIntegral gl_REPEAT)
 
   eitherTex <- loadTexture "data/ascii.png"
   case eitherTex of
@@ -226,6 +234,7 @@ renderingLoop window initialActors = do
     , cur = curPos
     , ballSpeed = (2, 2)
     , asciiShader = asciiProgram
+    , asciiSampler = sampler
     , asciiTexLocation = asciiTexLoc
     , asciiTex = tex
     }
@@ -378,17 +387,13 @@ display gameData actors = do
       Mesh.draw mesh (V.translate actorPos mat) viewMatrix projMatrix
       drawMesh viewMatrix projMatrix xs
 
-      glActiveTexture $ textureUnit 0
-      glBindTexture gl_TEXTURE_2D $ textureID $ asciiTex gameData
-      glUniform1i (asciiTexLocation gameData) 0
-
     drawAscii :: String -> IO ()
     drawAscii str = do
       let vertices =
-            [   0, 10, 0, 1, 1, 1, 1, 0, 100
-            , 10, 10, 0, 1, 1, 1, 1, 100, 100
-            ,   0,   0, 0, 1, 1, 1, 1, 0, 0
-            , 10,   0, 0, 1, 1, 1, 1, 100, 0
+            [  0, 0.5, 0, 1, 1, 1, 1,  0, 0
+            , 1, 0.5, 0, 1, 1, 1, 1, 1, 0
+            ,  0,  0, 0, 1, 1, 1, 1,  0, 0.5
+            , 1,  0, 0, 1, 1, 1, 1, 1, 0.5
             ] :: [GLfloat]
       vao <- genObjectName
       vb <- Mesh.createBuffer ArrayBuffer vertices
@@ -396,6 +401,7 @@ display gameData actors = do
           numColorElements = 4
           numTexCoordElements = 2
           vPosition = AttribLocation 0
+          vNormal = AttribLocation 1
           vColor = AttribLocation 2
           vTexCoord = AttribLocation 3
           offsetPosition = 0
@@ -410,6 +416,7 @@ display gameData actors = do
         , VertexArrayDescriptor (fromIntegral numPositionElements) Float sizeVertex (Mesh.bufferOffset (offsetPosition * sizeElement))
         )
       vertexAttribArray vPosition $= Enabled
+      vertexAttribArray vNormal $= Disabled
       vertexAttribPointer vColor $=
         ( ToFloat
         , VertexArrayDescriptor (fromIntegral numColorElements) Float sizeVertex (Mesh.bufferOffset (offsetColor * sizeElement))
@@ -422,6 +429,11 @@ display gameData actors = do
       vertexAttribArray vTexCoord $= Enabled
       bindVertexArrayObject $= Nothing
 
+      glActiveTexture (textureUnit 0)
+      glBindTexture gl_TEXTURE_2D $ textureID $ asciiTex gameData
+      glBindSampler 0 $ asciiSampler gameData
+      glUniform1i (asciiTexLocation gameData) (fromIntegral $ textureUnit 0)
+
       Shader.useProgram $ Just (asciiShader gameData)
       bindVertexArrayObject $= Just vao
 
@@ -429,5 +441,9 @@ display gameData actors = do
 
       bindVertexArrayObject $= Nothing
       Shader.useProgram Nothing
+      glBindSampler 0 0
+      glBindTexture gl_TEXTURE_2D 0
+
+      vertexAttribArray vTexCoord $= Disabled
       deleteObjectName vb
       deleteObjectName vao

@@ -19,6 +19,7 @@ import Data.Char (ord)
 import Data.Bits
 import Data.IORef
 import Data.Array.Storable
+import Data.Time.Clock
 import Data.Vec as V
 import Text.Printf
 import Control.Monad
@@ -189,6 +190,9 @@ data Camera = Camera
   , shininess :: GLfloat
   }
 
+-- | Each scene represent the state used by the game loop.
+data GameScene = TitleScene | LevelScene | GameOverScene
+
 data GameData = GameData
   { camera :: Camera
   , cur :: (Double, Double) -- for mouse movement.
@@ -245,14 +249,52 @@ renderingLoop window initialActors = do
     , asciiTex = tex
     }
 
-  loop gameData
+  loop titleScene gameData
   where
     keyAction key taction faction = do
       keyState <- GLFW.getKey window key
       if (keyState == GLFW.KeyState'Pressed) then taction else faction
 
-    loop gameData = (GLFW.windowShouldClose window) >>= (flip unless) (go gameData)
-    go gameData = do
+    loop :: (IORef GameData -> IO ()) -> IORef GameData -> IO ()
+    loop scene gameData = (GLFW.windowShouldClose window) >>= (flip unless) (scene gameData)
+
+    titleScene :: IORef GameData -> IO ()
+    titleScene gameData = do
+      gd <- readIORef gameData
+      glClearColor 0.1 0.4 0.2 1
+      glClear $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
+      drawAscii gd (-0.2, 0.5) "BREAK OUT"
+      GLFW.swapBuffers window
+      GLFW.pollEvents
+      keyAction GLFW.Key'Space
+        (loop levelScene gameData)
+        (loop titleScene gameData)
+
+    missScene :: IORef GameData -> IO ()
+    missScene gameData = do
+      start <- getCurrentTime
+      missScene' start gameData
+      where
+        missScene' start gameData' = do
+          gd <- readIORef gameData'
+          display gd
+          drawAscii gd (-0.3, 0.1) "MISS"
+          GLFW.swapBuffers window
+          GLFW.pollEvents
+          now <- getCurrentTime
+          if realToFrac (diffUTCTime now start) < (3.0 :: Double)
+          then missScene' start gameData'
+          else do
+            let (paddle:ball:others) = actorList gd
+                (px :. _ :. _) = Main.position paddle
+            writeIORef gameData' $ gd
+              { ballSpeed = (2,2)
+              , actorList = paddle : ball { Main.position = vec3 px 100 (-30) } : others
+              }
+            loop levelScene gameData'
+
+    levelScene :: IORef GameData -> IO ()
+    levelScene gameData = do
       gd <- readIORef gameData
       let actors = actorList gd
       display gd
@@ -293,7 +335,9 @@ renderingLoop window initialActors = do
       isExit <- GLFW.getKey window GLFW.Key'Escape
       when (isExit /= GLFW.KeyState'Pressed) $ do
         threadDelay 10000
-        loop gameData
+        if newBallY' > y - 25
+        then loop levelScene gameData
+        else loop missScene gameData
 
     boundWall ballPos speed top bottom =
       let n = ballPos + speed
@@ -416,8 +460,8 @@ display gameData = do
     glUniformBlockBinding progId idx bufferId
 
   drawMesh viewMatrix projMatrix actors
-  drawAscii (0.5, 0.7) "[SCORE]"
-  drawAscii (0.5, 0.6) . printf "%05d00" $ score gameData
+  drawAscii gameData (0.5, 0.7) "[SCORE]"
+  drawAscii gameData (0.5, 0.6) . printf "%05d00" $ score gameData
 
   glFlush
   where
@@ -427,62 +471,62 @@ display gameData = do
       Mesh.draw mesh (V.translate actorPos mat) viewMatrix projMatrix
       drawMesh viewMatrix projMatrix xs
 
-    drawAscii :: (GLfloat, GLfloat) -> String -> IO ()
-    drawAscii offset str = do
-      let vertices = stringToVertices str offset (0.05, 0.1) (0.95, 0.95, 1.0, 1)
-      vao <- genObjectName
-      vb <- Mesh.createBuffer ArrayBuffer vertices
-      let numPositionElements = 3
-          numColorElements = 4
-          numTexCoordElements = 2
-          vPosition = AttribLocation 0
-          vNormal = AttribLocation 1
-          vColor = AttribLocation 2
-          vTexCoord = AttribLocation 3
-          offsetPosition = 0
-          offsetColor = offsetPosition + numPositionElements
-          offsetTexCoord = offsetColor + numColorElements
-          sizeElement = sizeOf $ Prelude.head vertices
-          sizeVertex = fromIntegral $ sizeElement * (numPositionElements + numColorElements + numTexCoordElements)
-      bindVertexArrayObject $= Just vao
-      bindBuffer ArrayBuffer $= Just vb
-      vertexAttribPointer vPosition $=
-        ( ToFloat
-        , VertexArrayDescriptor (fromIntegral numPositionElements) Float sizeVertex (Mesh.bufferOffset (offsetPosition * sizeElement))
-        )
-      vertexAttribArray vPosition $= Enabled
-      vertexAttribArray vNormal $= Disabled
-      vertexAttribPointer vColor $=
-        ( ToFloat
-        , VertexArrayDescriptor (fromIntegral numColorElements) Float sizeVertex (Mesh.bufferOffset (offsetColor * sizeElement))
-        )
-      vertexAttribArray vColor $= Enabled
-      vertexAttribPointer vTexCoord $=
-        ( ToFloat
-        , VertexArrayDescriptor (fromIntegral numTexCoordElements) Float sizeVertex (Mesh.bufferOffset (offsetTexCoord * sizeElement))
-        )
-      vertexAttribArray vTexCoord $= Enabled
-      bindVertexArrayObject $= Nothing
+drawAscii :: GameData -> (GLfloat, GLfloat) -> String -> IO ()
+drawAscii gameData offset str = do
+  let vertices = stringToVertices str offset (0.05, 0.1) (0.95, 0.95, 1.0, 1)
+  vao <- genObjectName
+  vb <- Mesh.createBuffer ArrayBuffer vertices
+  let numPositionElements = 3
+      numColorElements = 4
+      numTexCoordElements = 2
+      vPosition = AttribLocation 0
+      vNormal = AttribLocation 1
+      vColor = AttribLocation 2
+      vTexCoord = AttribLocation 3
+      offsetPosition = 0
+      offsetColor = offsetPosition + numPositionElements
+      offsetTexCoord = offsetColor + numColorElements
+      sizeElement = sizeOf $ Prelude.head vertices
+      sizeVertex = fromIntegral $ sizeElement * (numPositionElements + numColorElements + numTexCoordElements)
+  bindVertexArrayObject $= Just vao
+  bindBuffer ArrayBuffer $= Just vb
+  vertexAttribPointer vPosition $=
+    ( ToFloat
+    , VertexArrayDescriptor (fromIntegral numPositionElements) Float sizeVertex (Mesh.bufferOffset (offsetPosition * sizeElement))
+    )
+  vertexAttribArray vPosition $= Enabled
+  vertexAttribArray vNormal $= Disabled
+  vertexAttribPointer vColor $=
+    ( ToFloat
+    , VertexArrayDescriptor (fromIntegral numColorElements) Float sizeVertex (Mesh.bufferOffset (offsetColor * sizeElement))
+    )
+  vertexAttribArray vColor $= Enabled
+  vertexAttribPointer vTexCoord $=
+    ( ToFloat
+    , VertexArrayDescriptor (fromIntegral numTexCoordElements) Float sizeVertex (Mesh.bufferOffset (offsetTexCoord * sizeElement))
+    )
+  vertexAttribArray vTexCoord $= Enabled
+  bindVertexArrayObject $= Nothing
 
-      glActiveTexture (textureUnit 0)
-      glBindTexture gl_TEXTURE_2D $ textureID $ asciiTex gameData
-      glBindSampler 0 $ asciiSampler gameData
-      glUniform1i (asciiTexLocation gameData) (fromIntegral $ textureUnit 0)
+  glActiveTexture (textureUnit 0)
+  glBindTexture gl_TEXTURE_2D $ textureID $ asciiTex gameData
+  glBindSampler 0 $ asciiSampler gameData
+  glUniform1i (asciiTexLocation gameData) (fromIntegral $ textureUnit 0)
 
-      Shader.useProgram $ Just (asciiShader gameData)
-      bindVertexArrayObject $= Just vao
+  Shader.useProgram $ Just (asciiShader gameData)
+  bindVertexArrayObject $= Just vao
 
-      GLRaw.glEnable gl_BLEND
-      GLRaw.glBlendFunc gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
-      GLRaw.glFrontFace gl_CCW
-      drawArrays TriangleStrip 0 $ fromIntegral ((Prelude.length str) * 4)
-      GLRaw.glFrontFace gl_CW
+  GLRaw.glEnable gl_BLEND
+  GLRaw.glBlendFunc gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
+  GLRaw.glFrontFace gl_CCW
+  drawArrays TriangleStrip 0 $ fromIntegral ((Prelude.length str) * 4)
+  GLRaw.glFrontFace gl_CW
 
-      bindVertexArrayObject $= Nothing
-      Shader.useProgram Nothing
-      glBindSampler 0 0
-      glBindTexture gl_TEXTURE_2D 0
+  bindVertexArrayObject $= Nothing
+  Shader.useProgram Nothing
+  glBindSampler 0 0
+  glBindTexture gl_TEXTURE_2D 0
 
-      vertexAttribArray vTexCoord $= Disabled
-      deleteObjectName vb
-      deleteObjectName vao
+  vertexAttribArray vTexCoord $= Disabled
+  deleteObjectName vb
+  deleteObjectName vao

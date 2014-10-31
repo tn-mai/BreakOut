@@ -5,6 +5,7 @@ module Main where
 
 import qualified App as App
 import qualified Mesh as Mesh
+import Mesh (vec4)
 import qualified Shader as Shader
 import qualified BarMesh as BarMesh
 import qualified LightSource as LS
@@ -28,8 +29,6 @@ import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Storable
 import Codec.Image.PNG
-
-vec4 = Mesh.vec4
 
 -- | Actor is the mesh object controller.
 data Actor = Actor

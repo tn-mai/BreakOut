@@ -10,7 +10,6 @@ import qualified BarMesh as BarMesh
 import qualified LightSource as LS
 
 import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
---import Graphics.Rendering.OpenGL
 import Graphics.Rendering.OpenGL hiding (TextureObject, Line)
 import Graphics.Rendering.OpenGL.Raw
 import Graphics.Rendering.OpenGL.GL.ByteString
@@ -20,7 +19,6 @@ import Data.IORef
 import Data.Array.Storable
 import Data.Vec as V
 import Control.Monad
-import Control.Exception
 import Control.Concurrent (threadDelay)
 import System.Environment
 import System.Exit
@@ -385,10 +383,10 @@ display gameData actors = do
       glUniform1i (asciiTexLocation gameData) 0
 
       let vertices =
-            [   0, 100, 0, 1, 1, 1, 1, 0, 100
-            , 100, 100, 0, 1, 1, 1, 1, 100, 100
+            [   0, 10, 0, 1, 1, 1, 1, 0, 100
+            , 10, 10, 0, 1, 1, 1, 1, 100, 100
             ,   0,   0, 0, 1, 1, 1, 1, 0, 0
-            , 100,   0, 0, 1, 1, 1, 1, 100, 0
+            , 10,   0, 0, 1, 1, 1, 1, 100, 0
             ] :: [GLfloat]
       vao <- genObjectName
       vb <- Mesh.createBuffer ArrayBuffer vertices

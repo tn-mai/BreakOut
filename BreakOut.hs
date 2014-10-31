@@ -158,9 +158,9 @@ loadTexture path = do
   case x of
     Left e -> return $ Left e
     Right img -> do
-      ptr <- alloca $ \texture -> do
-        glGenTextures 1 texture
-        texId <- peek texture
+      texId <- alloca $ \texIdPtr -> do
+        glGenTextures 1 texIdPtr
+        texId <- peek texIdPtr
         glBindTexture gl_TEXTURE_2D texId
         glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER (fromIntegral gl_LINEAR)
         glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER (fromIntegral gl_LINEAR)
@@ -171,13 +171,12 @@ loadTexture path = do
         withStorableArray (imageData img) $ \ptr ->
           glTexImage2D gl_TEXTURE_2D 0 pif (fromIntegral w) (fromIntegral h) 0 pf unsignedByte ptr
         glBindTexture gl_TEXTURE_2D 0
-        return texture;
-      texId <- peek ptr
+        return texId;
       return . Right $ Main.TextureObject texId
 
 unloadTexture :: Main.TextureObject -> IO ()
-unloadTexture texture = do
-  withArrayLen [(textureID texture)] $ glDeleteTextures . fromIntegral
+unloadTexture tex = do
+  withArrayLen [(textureID tex)] $ glDeleteTextures . fromIntegral
 
 textureUnit :: GLuint -> GLenum
 textureUnit x = 0x84c0 + x
@@ -214,7 +213,7 @@ renderingLoop window initialActors = do
   eitherTex <- loadTexture "data/ascii.png"
   case eitherTex of
     Left e -> hPutStrLn stderr e
-    Right tex -> hPutStrLn stderr "success loading texture."
+    Right _ -> hPutStrLn stderr "success loading texture."
   let (Right tex) = eitherTex
 
   gameData <- newIORef $ Main.GameData
@@ -278,8 +277,8 @@ renderingLoop window initialActors = do
         threadDelay 10000
         loop newActors gameData
 
-    boundWall pos speed top bottom =
-      let n = pos + speed
+    boundWall ballPos speed top bottom =
+      let n = ballPos + speed
       in
         if n >= top
         then (n - (n - top), (-speed))
@@ -334,14 +333,14 @@ vec3 x y z = x :. y :. z :. ()
 
 -- | Make the view matrix looking at any point.
 lookAt :: Floating a => Vec3 a -> Vec3 a -> Vec3 a -> Mat44 a
-lookAt eye target up = x :. y :. z :. h :. ()
+lookAt eyePos targetPos upVec = x :. y :. z :. h :. ()
   where
-    forward = V.normalize $ target - eye
-    right = V.normalize $ V.cross forward up
+    forward = V.normalize $ targetPos - eyePos
+    right = V.normalize $ V.cross forward upVec
     up' = V.cross right forward
-    x = V.snoc right (-(V.dot right eye))
-    y = V.snoc up' (-(V.dot up' eye))
-    z = V.snoc (-forward) (V.dot forward eye)
+    x = V.snoc right (-(V.dot right eyePos))
+    y = V.snoc up' (-(V.dot up' eyePos))
+    z = V.snoc (-forward) (V.dot forward eyePos)
     h = 0 :. 0 :. 0 :. 1 :. ()
 
 -- | Render all of the actors.
@@ -370,21 +369,21 @@ display gameData actors = do
     glUniformBlockBinding progId idx bufferId
 
   -- drawMesh viewMatrix projMatrix actors
-  drawAscii gameData "abc"
+  drawAscii "abc"
   glFlush
   where
     drawMesh :: Mat44 GLfloat -> Mat44 GLfloat -> [Actor] -> IO ()
     drawMesh _ _ [] = return ()
-    drawMesh viewMatrix projMatrix (Actor mesh mat pos:xs) = do
-      Mesh.draw mesh (V.translate pos mat) viewMatrix projMatrix
+    drawMesh viewMatrix projMatrix (Actor mesh mat actorPos:xs) = do
+      Mesh.draw mesh (V.translate actorPos mat) viewMatrix projMatrix
       drawMesh viewMatrix projMatrix xs
 
-    drawAscii :: GameData -> String -> IO ()
-    drawAscii gameData str = do
       glActiveTexture $ textureUnit 0
       glBindTexture gl_TEXTURE_2D $ textureID $ asciiTex gameData
       glUniform1i (asciiTexLocation gameData) 0
 
+    drawAscii :: String -> IO ()
+    drawAscii str = do
       let vertices =
             [   0, 10, 0, 1, 1, 1, 1, 0, 100
             , 10, 10, 0, 1, 1, 1, 1, 100, 100

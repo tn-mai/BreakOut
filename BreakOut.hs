@@ -20,6 +20,7 @@ import Data.Bits
 import Data.IORef
 import Data.Array.Storable
 import Data.Vec as V
+import Text.Printf
 import Control.Monad
 import Control.Concurrent (threadDelay)
 import System.Environment
@@ -192,6 +193,7 @@ data GameData = GameData
   { camera :: Camera
   , cur :: (Double, Double) -- for mouse movement.
   , ballSpeed :: (GLfloat, GLfloat)
+  , score :: Int
   , asciiShader :: Shader.Program
   , asciiSampler :: GLuint
   , asciiTexLocation :: Shader.UniformLocation
@@ -227,13 +229,14 @@ renderingLoop window initialActors = do
 
   gameData <- newIORef $ Main.GameData
     { camera = Camera
-        { pos = vec3 (125) (-100) (-450)
-        , target = vec3 (125) (150) (0)
+        { pos = vec3 (75) (-100) (-450)
+        , target = vec3 (75) (150) (0)
         , up = vec3 0 1 0
         , shininess = 64
         }
     , cur = curPos
     , ballSpeed = (2, 2)
+    , score = 0
     , asciiShader = asciiProgram
     , asciiSampler = sampler
     , asciiTexLocation = asciiTexLoc
@@ -280,6 +283,7 @@ renderingLoop window initialActors = do
       writeIORef gameData $ gd
         { cur = (newX, newY)
         , ballSpeed = (if hitX then (-newSpeedX') else newSpeedX', if hitY then (-newSpeedY') else newSpeedY')
+        , score = (score gd) + if hitX || hitY then 1 else 0
         }
 
       isExit <- GLFW.getKey window GLFW.Key'Escape
@@ -407,8 +411,10 @@ display gameData actors = do
     idx <- withGLstring "LightSourceBlock" $ glGetUniformBlockIndex progId
     glUniformBlockBinding progId idx bufferId
 
-  -- drawMesh viewMatrix projMatrix actors
-  drawAscii "SCORE"
+  drawMesh viewMatrix projMatrix actors
+  drawAscii (0.5, 0.7) "[SCORE]"
+  drawAscii (0.5, 0.6) . printf "%05d00" $ score gameData
+
   glFlush
   where
     drawMesh :: Mat44 GLfloat -> Mat44 GLfloat -> [Actor] -> IO ()
@@ -417,9 +423,9 @@ display gameData actors = do
       Mesh.draw mesh (V.translate actorPos mat) viewMatrix projMatrix
       drawMesh viewMatrix projMatrix xs
 
-    drawAscii :: String -> IO ()
-    drawAscii str = do
-      let vertices = stringToVertices str (0, 0) (0.05, 0.1) (1, 0.5, 0.1, 1)
+    drawAscii :: (GLfloat, GLfloat) -> String -> IO ()
+    drawAscii offset str = do
+      let vertices = stringToVertices str offset (0.05, 0.1) (0.95, 0.95, 1.0, 1)
       vao <- genObjectName
       vb <- Mesh.createBuffer ArrayBuffer vertices
       let numPositionElements = 3

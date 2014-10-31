@@ -12,9 +12,10 @@ import qualified LightSource as LS
 
 import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
 import Graphics.Rendering.OpenGL hiding (TextureObject, Line)
-import Graphics.Rendering.OpenGL.Raw
+import Graphics.Rendering.OpenGL.Raw as GLRaw
 import Graphics.Rendering.OpenGL.GL.ByteString
 import Data.Maybe (isNothing, fromJust)
+import Data.Char (ord)
 import Data.Bits
 import Data.IORef
 import Data.Array.Storable
@@ -352,6 +353,35 @@ lookAt eyePos targetPos upVec = x :. y :. z :. h :. ()
     z = V.snoc (-forward) (V.dot forward eyePos)
     h = 0 :. 0 :. 0 :. 1 :. ()
 
+stringToTexCoord :: String -> [(GLfloat, GLfloat)]
+stringToTexCoord str =
+  zip (Prelude.map (u . ord) str) (Prelude.map ((+(1/256)) . v . ord) str)
+  where
+    u = (/ 16) . fromIntegral . (`mod` 16)
+    v = (/ 16) . fromIntegral . (`div` 16)
+
+-- 0---2---4---
+-- | / | / |
+-- 1---3---5---
+stringToVertices :: String -> (GLfloat, GLfloat) -> (GLfloat, GLfloat) -> (GLfloat, GLfloat, GLfloat, GLfloat) -> [GLfloat]
+stringToVertices str (offx, offy) (sx, sy) (r, g, b, a) =
+  Prelude.foldl1 (++) vertices
+  where
+    vertices = [ makeQuad x offy c u v
+      | c <- [[r, g, b, a]]
+      , (x, (u, v)) <- zip xPositions (stringToTexCoord str)
+      ]
+    makeQuad x y c u v = []
+      ++ [x     , y + sy, 0] ++ c ++ [u        , v]
+      ++ [x     , y     , 0] ++ c ++ [u        , v + unitV]
+      ++ [x + sx, y + sy, 0] ++ c ++ [u + unitU, v]
+      ++ [x + sx, y     , 0] ++ c ++ [u + unitU, v + unitV]
+    xPositions = Prelude.take (Prelude.length str) [offx, (offx + sx) .. ]
+    unitU :: GLfloat
+    unitU = 1 / 16
+    unitV :: GLfloat
+    unitV = 1 / 16
+
 -- | Render all of the actors.
 display :: GameData -> [Actor] -> IO ()
 display _ [] = return ()
@@ -378,7 +408,7 @@ display gameData actors = do
     glUniformBlockBinding progId idx bufferId
 
   -- drawMesh viewMatrix projMatrix actors
-  drawAscii "abc"
+  drawAscii "SCORE"
   glFlush
   where
     drawMesh :: Mat44 GLfloat -> Mat44 GLfloat -> [Actor] -> IO ()
@@ -389,12 +419,7 @@ display gameData actors = do
 
     drawAscii :: String -> IO ()
     drawAscii str = do
-      let vertices =
-            [  0, 0.5, 0, 1, 1, 1, 1,  0, 0
-            , 1, 0.5, 0, 1, 1, 1, 1, 1, 0
-            ,  0,  0, 0, 1, 1, 1, 1,  0, 0.5
-            , 1,  0, 0, 1, 1, 1, 1, 1, 0.5
-            ] :: [GLfloat]
+      let vertices = stringToVertices str (0, 0) (0.05, 0.1) (1, 0.5, 0.1, 1)
       vao <- genObjectName
       vb <- Mesh.createBuffer ArrayBuffer vertices
       let numPositionElements = 3
@@ -437,7 +462,11 @@ display gameData actors = do
       Shader.useProgram $ Just (asciiShader gameData)
       bindVertexArrayObject $= Just vao
 
-      drawArrays TriangleStrip 0 4
+      GLRaw.glEnable gl_BLEND
+      GLRaw.glBlendFunc gl_SRC_ALPHA gl_ONE_MINUS_SRC_ALPHA
+      GLRaw.glFrontFace gl_CCW
+      drawArrays TriangleStrip 0 $ fromIntegral ((Prelude.length str) * 4)
+      GLRaw.glFrontFace gl_CW
 
       bindVertexArrayObject $= Nothing
       Shader.useProgram Nothing

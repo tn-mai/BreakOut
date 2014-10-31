@@ -139,11 +139,15 @@ main = do
         (\(x, y, z) -> Actor mesh mat (vec3 x y z))
         posList
 
-rgb8 = 0x8051 :: GLint
+rgb8 :: GLint
+rgb8 = 0x8051
 rgba8 :: GLint
 rgba8 = 0x8058 :: GLint
+unsignedByte :: GLenum
 unsignedByte = 0x1401 :: GLenum
+textureWrapS :: GLenum
 textureWrapS = 0x2802 :: GLenum
+textureWrapT :: GLenum
 textureWrapT = 0x2803 :: GLenum
 
 newtype TextureObject = TextureObject { textureID :: GLuint }

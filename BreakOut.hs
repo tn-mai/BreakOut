@@ -452,15 +452,17 @@ stringToVertices str (offx, offy) (sx, sy) (r, g, b, a) =
       , (x, (u, v)) <- zip xPositions (stringToTexCoord str)
       ]
     makeQuad x y c u v = []
-      ++ [x     , y + sy, 0] ++ c ++ [u        , v]
-      ++ [x     , y     , 0] ++ c ++ [u        , v + unitV]
-      ++ [x + sx, y + sy, 0] ++ c ++ [u + unitU, v]
-      ++ [x + sx, y     , 0] ++ c ++ [u + unitU, v + unitV]
+      ++ [x     , y + sy, 0] ++ c ++ [u'        , v]
+      ++ [x     , y     , 0] ++ c ++ [u'        , v + unitV]
+      ++ [x + sx, y + sy, 0] ++ c ++ [u' + unitU, v]
+      ++ [x + sx, y     , 0] ++ c ++ [u' + unitU, v + unitV]
+      where
+       u' = u + (1/256)
     xPositions = Prelude.take (Prelude.length str) [offx, (offx + sx) .. ]
     unitU :: GLfloat
-    unitU = 1 / 16
+    unitU = 1 / 16 - (1/256)
     unitV :: GLfloat
-    unitV = 1 / 16
+    unitV = 1 / 16 - (1/256)
 
 -- | Render all of the actors.
 display :: GameData -> IO ()

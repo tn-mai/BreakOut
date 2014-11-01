@@ -190,9 +190,6 @@ data Camera = Camera
   , shininess :: GLfloat
   }
 
--- | Each scene represent the state used by the game loop.
-data GameScene = TitleScene | LevelScene | GameOverScene
-
 data GameData = GameData
   { camera :: Camera
   , cur :: (Double, Double) -- for mouse movement.

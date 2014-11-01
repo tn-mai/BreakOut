@@ -198,6 +198,7 @@ data GameData = GameData
   , cur :: (Double, Double) -- for mouse movement.
   , ballSpeed :: (GLfloat, GLfloat)
   , score :: Int
+  , restOfBall :: Int
   , actorList :: [Actor]
   , asciiShader :: Shader.Program
   , asciiSampler :: GLuint
@@ -242,6 +243,7 @@ renderingLoop window initialActors = do
     , cur = curPos
     , ballSpeed = (2, 2)
     , score = 0
+    , restOfBall = 3
     , actorList = initialActors
     , asciiShader = asciiProgram
     , asciiSampler = sampler
@@ -269,6 +271,29 @@ renderingLoop window initialActors = do
       keyAction GLFW.Key'Space
         (loop levelScene gameData)
         (loop titleScene gameData)
+
+    gameOverScene :: IORef GameData -> IO ()
+    gameOverScene gameData = do
+      start <- getCurrentTime
+      gameOverScene' start gameData
+      where
+        gameOverScene' start gameData' = do
+          gd <- readIORef gameData'
+          display gd
+          drawAscii gd (-0.4, 0.1) "G A M E  O V E R"
+          GLFW.swapBuffers window
+          GLFW.pollEvents
+          now <- getCurrentTime
+          if realToFrac (diffUTCTime now start) < (3.0 :: Double)
+          then gameOverScene' start gameData'
+          else do
+            writeIORef gameData' $ gd
+              { ballSpeed = (2, 2)
+              , score = 0
+              , restOfBall = 3
+              , actorList = initialActors
+              }
+            loop titleScene gameData'
 
     missScene :: IORef GameData -> IO ()
     missScene gameData = do
@@ -324,20 +349,26 @@ renderingLoop window initialActors = do
             : ball { Main.position = vec3 newBallX' newBallY' bz }
             : Prelude.take 76 (Prelude.drop 2 actors)
             ) ++ nonHitBlocks
+          hasMiss = (newBallY' <= y - 25) :: Bool
 
       writeIORef gameData $ gd
         { cur = (newX, newY)
         , ballSpeed = (if hitX then (-newSpeedX') else newSpeedX', if hitY then (-newSpeedY') else newSpeedY')
         , score = (score gd) + if hitX || hitY then 1 else 0
+        , restOfBall = (restOfBall gd) - (if hasMiss then 1 else 0)
         , actorList = newActors
         }
 
       isExit <- GLFW.getKey window GLFW.Key'Escape
       when (isExit /= GLFW.KeyState'Pressed) $ do
         threadDelay 10000
-        if newBallY' > y - 25
-        then loop levelScene gameData
-        else loop missScene gameData
+        if hasMiss
+        then
+          if restOfBall gd > 0
+          then loop missScene gameData
+          else loop gameOverScene gameData
+        else
+           loop levelScene gameData
 
     boundWall ballPos speed top bottom =
       let n = ballPos + speed
@@ -462,6 +493,8 @@ display gameData = do
   drawMesh viewMatrix projMatrix actors
   drawAscii gameData (0.5, 0.7) "[SCORE]"
   drawAscii gameData (0.5, 0.6) . printf "%05d00" $ score gameData
+  drawAscii gameData (0.5, 0.4) "[BALL]"
+  drawAscii gameData (0.5, 0.3) . Prelude.take (restOfBall gameData) $ repeat 'o'
 
   glFlush
   where

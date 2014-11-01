@@ -33,6 +33,10 @@ import Foreign.Marshal.Array
 import Foreign.Storable
 import Codec.Image.PNG
 
+-- | Make the 3 coordinate vector.
+vec3 :: forall a a1 a2. a -> a1 -> a2 -> a :. (a1 :. (a2 :. ()))
+vec3 x y z = x :. y :. z :. ()
+
 -- | Actor is the mesh object controller.
 data Actor = Actor
   { object :: Mesh.Object
@@ -416,10 +420,6 @@ intersect (Line bx by cx cy) (Line px py qx qy) =
     then True
     else False
   else False
-
--- | Make the 3 coordinate vector.
-vec3 :: forall a a1 a2. a -> a1 -> a2 -> a :. (a1 :. (a2 :. ()))
-vec3 x y z = x :. y :. z :. ()
 
 -- | Make the view matrix looking at any point.
 lookAt :: Floating a => Vec3 a -> Vec3 a -> Vec3 a -> Mat44 a

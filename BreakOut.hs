@@ -33,9 +33,16 @@ import Foreign.Marshal.Array
 import Foreign.Storable
 import Codec.Image.PNG
 
+-- | Make the 2 coordinate vector.
+vec2 :: forall a a1. a -> a1 -> a :. (a1 :. ())
+vec2 x y = x :. y :. ()
+
 -- | Make the 3 coordinate vector.
 vec3 :: forall a a1 a2. a -> a1 -> a2 -> a :. (a1 :. (a2 :. ()))
 vec3 x y z = x :. y :. z :. ()
+
+type Offset2 = V.Vec2 GLfloat
+type Scale2 = V.Vec2 GLfloat
 
 -- | Actor is the mesh object controller.
 data Actor = Actor
@@ -266,7 +273,7 @@ renderingLoop window initialActors = do
       gd <- readIORef gameData
       glClearColor 0.1 0.4 0.2 1
       glClear $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
-      drawAscii gd (-0.2, 0.5) "BREAK OUT"
+      drawAscii gd (vec2 (-0.9) 0.2) (vec2 0.2 0.4) (Color4 1 1 0.5 1) "BREAK OUT"
       GLFW.swapBuffers window
       GLFW.pollEvents
       keyAction GLFW.Key'Space
@@ -281,10 +288,11 @@ renderingLoop window initialActors = do
         gameOverScene' start gameData' = do
           gd <- readIORef gameData'
           display gd
-          drawAscii gd (-0.4, 0.1) "G A M E  O V E R"
+          drawAscii gd (vec2 (-0.8) 0.0) (vec2 0.15 0.3) (Color4 0 0 0 1) "GAME OVER"
           GLFW.swapBuffers window
           GLFW.pollEvents
           now <- getCurrentTime
+          keyAction GLFW.Key'Space (putStrLn "on") (return ())
           if realToFrac (diffUTCTime now start) < (3.0 :: Double)
           then gameOverScene' start gameData'
           else do
@@ -304,7 +312,7 @@ renderingLoop window initialActors = do
         missScene' start gameData' = do
           gd <- readIORef gameData'
           display gd
-          drawAscii gd (-0.3, 0.1) "MISS"
+          drawAscii gd (vec2 (-0.4) 0.0) (vec2 0.1 0.2) (Color4 1 0.2 0.1 1) "MISS"
           GLFW.swapBuffers window
           GLFW.pollEvents
           now <- getCurrentTime
@@ -490,22 +498,27 @@ display gameData = do
     glUniformBlockBinding progId idx bufferId
 
   drawMesh viewMatrix projMatrix actors
-  drawAscii gameData (0.5, 0.7) "[SCORE]"
-  drawAscii gameData (0.5, 0.6) . printf "%05d00" $ score gameData
-  drawAscii gameData (0.5, 0.4) "[BALL]"
-  drawAscii gameData (0.5, 0.3) . Prelude.take (restOfBall gameData) $ repeat 'o'
+  drawAscii gameData (vec2 0.5 0.7) fontScale fontColor "[SCORE]"
+  drawAscii gameData (vec2 0.5 0.6) fontScale fontColor . printf "%05d00" $ score gameData
+  drawAscii gameData (vec2 0.5 0.4) fontScale fontColor "[BALL]"
+  when (restOfBall gameData > 0) $
+    drawAscii gameData (vec2 0.5 0.3) fontScale fontColor . Prelude.take (restOfBall gameData) $ repeat 'o'
 
   glFlush
   where
+    fontScale :: Scale2
+    fontScale = (vec2 0.05 0.1)
+    fontColor :: Color4 GLfloat
+    fontColor = (Color4 0.95 0.95 1 1)
     drawMesh :: Mat44 GLfloat -> Mat44 GLfloat -> [Actor] -> IO ()
     drawMesh _ _ [] = return ()
     drawMesh viewMatrix projMatrix (Actor mesh mat actorPos:xs) = do
       Mesh.draw mesh (V.translate actorPos mat) viewMatrix projMatrix
       drawMesh viewMatrix projMatrix xs
 
-drawAscii :: GameData -> (GLfloat, GLfloat) -> String -> IO ()
-drawAscii gameData offset str = do
-  let vertices = stringToVertices str offset (0.05, 0.1) (0.95, 0.95, 1.0, 1)
+drawAscii :: GameData -> Offset2 -> Scale2 -> Color4 GLfloat -> String -> IO ()
+drawAscii gameData (ox :. oy :. ()) (sx :. sy :. ()) (Color4 r g b a) str = do
+  let vertices = stringToVertices str (ox, oy) (sx, sy) (r, g, b, a)
   vao <- genObjectName
   vb <- Mesh.createBuffer ArrayBuffer vertices
   let numPositionElements = 3

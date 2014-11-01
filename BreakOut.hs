@@ -365,7 +365,7 @@ renderingLoop window initialActors = do
         threadDelay 10000
         if hasMiss
         then
-          if restOfBall gd > 0
+          if restOfBall gd > 1
           then loop missScene gameData
           else loop gameOverScene gameData
         else

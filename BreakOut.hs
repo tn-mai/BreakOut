@@ -284,7 +284,8 @@ renderingLoop window initialActors = do
       if (keyState == GLFW.KeyState'Pressed) then taction else faction
 
     loop :: (IORef GameData -> IO ()) -> IORef GameData -> IO ()
-    loop scene gameData = (GLFW.windowShouldClose window) >>= (flip unless) (scene gameData)
+    loop scene gameData =
+      (threadDelay 10000) >> (GLFW.windowShouldClose window) >>= (flip unless) (scene gameData)
 
     initTitleScene :: IORef GameData -> IO ()
     initTitleScene gameData = do
@@ -410,7 +411,6 @@ renderingLoop window initialActors = do
 
       isExit <- GLFW.getKey window GLFW.Key'Escape
       when (isExit /= GLFW.KeyState'Pressed) $ do
-        threadDelay 10000
         if hasMiss
         then
           if restOfBall gd > 1

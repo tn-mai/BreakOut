@@ -10,6 +10,7 @@ import qualified Shader as Shader
 import qualified BarMesh as BarMesh
 import qualified LightSource as LS
 import qualified TitleData
+import qualified Collision
 
 import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
 import Graphics.Rendering.OpenGL hiding (TextureObject, Line)
@@ -221,7 +222,8 @@ data Camera = Camera
 data GameData = GameData
   { camera :: Camera
   , cur :: (Double, Double) -- for mouse movement.
-  , ballSpeed :: (GLfloat, GLfloat)
+  , ballVector :: Vec2 GLfloat
+  , ballSpeed :: GLfloat
   , score :: Int
   , restOfBall :: Int
   , actorList :: [Actor]
@@ -230,6 +232,12 @@ data GameData = GameData
   , asciiTexLocation :: Shader.UniformLocation
   , asciiTex :: Main.TextureObject
   }
+
+initialBallVector :: Vec2 GLfloat
+initialBallVector = V.normalize $ vec2 1 1
+
+initialBallSpeed :: GLfloat
+initialBallSpeed = 3
 
 -- | The main loop in the game.
 renderingLoop :: GLFW.Window -> [Actor] -> IO ()
@@ -265,7 +273,8 @@ renderingLoop window initialActors = do
         , up = vec3 0 1 0
         }
     , cur = curPos
-    , ballSpeed = (2, 2)
+    , ballVector = initialBallVector
+    , ballSpeed = initialBallSpeed
     , score = 0
     , restOfBall = 3
     , actorList = initialActors
@@ -337,7 +346,8 @@ renderingLoop window initialActors = do
           then gameOverScene' start gameData'
           else do
             writeIORef gameData' $ gd
-              { ballSpeed = (2, 2)
+              { ballVector = initialBallVector
+              , ballSpeed = initialBallSpeed
               , score = 0
               , restOfBall = 3
               , actorList = initialActors
@@ -362,7 +372,8 @@ renderingLoop window initialActors = do
             let (paddle:ball:others) = actorList gd
                 (px :. _ :. _) = Main.position paddle
             writeIORef gameData' $ gd
-              { ballSpeed = (2,2)
+              { ballVector = initialBallVector
+              , ballSpeed = initialBallSpeed
               , actorList = paddle : ball { Main.position = vec3 px 100 (-30) } : others
               }
             loop levelScene gameData'
@@ -384,7 +395,8 @@ renderingLoop window initialActors = do
       then loop (levelClearScene start) gameData
       else do
         writeIORef gameData $ gd
-          { ballSpeed = (2,2)
+          { ballVector = initialBallVector
+          , ballSpeed = initialBallSpeed
           , actorList = initialActors
           }
         loop levelScene gameData
@@ -406,26 +418,24 @@ renderingLoop window initialActors = do
 
       let ball = actors !! 1
           blocks = Prelude.drop 78 actors
-          (speedX, speedY) = ballSpeed gd
-          (bx :. by :. bz :. ()) = Main.position ball
+          (speedX :. speedY :. ()) = ballVector gd
+          (bx :. by :. _ :. ()) = Main.position ball
           (newBallX, newSpeedX) = boundWall (bx + speedX) speedX 270 (-20)
           (newBallY, newSpeedY) = boundWall (by + speedY) speedY 370 (-20)
-          (newBallX', newBallY', newSpeedX', newSpeedY') =
-            if boundPaddle (newBallX, newBallY) (newSpeedX, newSpeedY) (x, y)
-            then (newBallX, newBallY, newSpeedX, (-newSpeedY))
-            else (newBallX, newBallY, newSpeedX, newSpeedY)
+          (newBall, newSpeedX' :. newSpeedY' :. (), newSpeed) = boundPaddle paddle (ball, vec2 newSpeedX newSpeedY, ballSpeed gd)
           (hitX, hitY, nonHitBlocks) =
             intersectBlock (Line bx by (bx + speedX * 3) (by + speedY * 3)) blocks
           newActors =
             ( paddle { Main.position = vec3 newPaddleX y z  }
-            : ball { Main.position = vec3 newBallX' newBallY' bz }
+            : newBall
             : Prelude.take 76 (Prelude.drop 2 actors)
             ) ++ nonHitBlocks
-          hasMiss = (newBallY' <= y - 25) :: Bool
+          hasMiss = (\(_:.ny:._:.()) -> ny <= y - 25) (Main.position newBall) :: Bool
 
       writeIORef gameData $ gd
         { cur = (newX, newY)
-        , ballSpeed = (if hitX then (-newSpeedX') else newSpeedX', if hitY then (-newSpeedY') else newSpeedY')
+        , ballVector = vec2 (if hitX then (-newSpeedX') else newSpeedX') (if hitY then (-newSpeedY') else newSpeedY')
+        , ballSpeed = (ballSpeed gd) + (if newSpeed /= (ballSpeed gd) then 0.1 else 0)
         , score = (score gd) + if hitX || hitY then 1 else 0
         , restOfBall = (restOfBall gd) - (if hasMiss then 1 else 0)
         , actorList = newActors
@@ -451,16 +461,38 @@ renderingLoop window initialActors = do
           then (n + (bottom - n), (-speed))
           else (n, speed)
 
-    boundPaddle (bx, by) (sx, sy) (px, py) =
-      if (by < pTop) || ((by + sy) > pTop)
-      then False
+    boundPaddle :: Actor -- | paddle actor.
+                -> (Actor, Vec2 GLfloat, GLfloat) -- | ball actor, ball vector and speed.
+                -> (Actor, Vec2 GLfloat, GLfloat) -- | result of new ball actor, ball vector and speed.
+    boundPaddle paddle (ball, vx :. vy :. (), speed) =
+      if vy >= 0
+      then
+        ( ball { Main.position = vec3 (bx + vx * speed) (by + vy * speed) bz }
+        , vec2 vx vy
+        , speed
+        )
       else
-        if (nx > (px + 50)) || (nx < (px - 50))
-        then False
-        else True
+        case result of
+          Nothing ->
+            ( ball { Main.position = vec3 (bx + vx * speed) (by + vy * speed) bz }
+            , vec2 vx vy
+            , speed
+            )
+          Just (hx, hy) ->
+            ( ball { Main.position = vec3 hx hy bz }
+            , vec2 (-(cos ((hx - (px - 60)) / 120 * pi))) (sin ((hx - (px - 60)) / 120 * pi))
+            , speed - sqrt (((hx - bx) ** 2) + ((hy - by) ** 2))
+            )
       where
+        result :: Maybe (GLfloat, GLfloat)
+        result = Collision.intersection paddleLine ballLine
+        (bx :. by :. bz :. ()) = Main.position ball
+        (px :. py :. _ :. ()) = Main.position paddle
+        pLeft = px - 50
+        pRight = px + 50
         pTop = py + 10
-        nx = bx + (sx * (by - py) / sy)
+        paddleLine = (pLeft, pTop, pRight, pTop)
+        ballLine = (bx, by, bx + vx * speed, by + vy * speed)
 
 intersectBlock :: Line GLfloat -> [Actor] -> (Bool, Bool, [Actor])
 intersectBlock _ [] = (False, False, [])

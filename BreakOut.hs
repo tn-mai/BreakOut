@@ -284,8 +284,10 @@ renderingLoop window initialActors = do
       if (keyState == GLFW.KeyState'Pressed) then taction else faction
 
     loop :: (IORef GameData -> IO ()) -> IORef GameData -> IO ()
-    loop scene gameData =
-      (threadDelay 10000) >> (GLFW.windowShouldClose window) >>= (flip unless) (scene gameData)
+    loop scene gameData = do
+      isExit <- GLFW.getKey window GLFW.Key'Escape
+      when (isExit /= GLFW.KeyState'Pressed) $
+        (threadDelay 10000) >> (GLFW.windowShouldClose window) >>= (flip unless) (scene gameData)
 
     initTitleScene :: IORef GameData -> IO ()
     initTitleScene gameData = do
@@ -409,15 +411,13 @@ renderingLoop window initialActors = do
         , actorList = newActors
         }
 
-      isExit <- GLFW.getKey window GLFW.Key'Escape
-      when (isExit /= GLFW.KeyState'Pressed) $ do
-        if hasMiss
-        then
-          if restOfBall gd > 1
-          then loop missScene gameData
-          else loop gameOverScene gameData
-        else
-           loop levelScene gameData
+      if hasMiss
+      then
+        if restOfBall gd > 1
+        then loop missScene gameData
+        else loop gameOverScene gameData
+      else
+         loop levelScene gameData
 
     boundWall ballPos speed top bottom =
       let n = ballPos + speed

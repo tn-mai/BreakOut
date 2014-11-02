@@ -287,7 +287,7 @@ renderingLoop window initialActors = do
       where
         gameOverScene' start gameData' = do
           gd <- readIORef gameData'
-          display gd
+          displayLevel gd
           drawAscii gd (vec2 (-0.8) 0.0) (vec2 0.15 0.3) (Color4 0 0 0 1) "GAME OVER"
           GLFW.swapBuffers window
           GLFW.pollEvents
@@ -311,7 +311,7 @@ renderingLoop window initialActors = do
       where
         missScene' start gameData' = do
           gd <- readIORef gameData'
-          display gd
+          displayLevel gd
           drawAscii gd (vec2 (-0.4) 0.0) (vec2 0.1 0.2) (Color4 1 0.2 0.1 1) "MISS"
           GLFW.swapBuffers window
           GLFW.pollEvents
@@ -331,7 +331,7 @@ renderingLoop window initialActors = do
     levelScene gameData = do
       gd <- readIORef gameData
       let actors = actorList gd
-      display gd
+      displayLevel gd
       GLFW.swapBuffers window
       GLFW.pollEvents
 
@@ -472,18 +472,30 @@ stringToVertices str (offx, offy) (sx, sy) (r, g, b, a) =
     unitV :: GLfloat
     unitV = 1 / 16 - (1/256)
 
--- | Render all of the actors.
-display :: GameData -> IO ()
-display gameData = do
-  let cam = camera gameData
-      actors = actorList gameData
+-- | Render level.
+displayLevel :: GameData -> IO ()
+displayLevel gameData = do
   glClearColor 0.1 0.4 0.2 1
   glClear $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
+  display (camera gameData) (actorList gameData)
+  drawAscii gameData (vec2 0.5 0.7) fontScale fontColor "[SCORE]"
+  drawAscii gameData (vec2 0.5 0.6) fontScale fontColor . printf "%05d00" $ score gameData
+  drawAscii gameData (vec2 0.5 0.4) fontScale fontColor "[BALL]"
+  when (restOfBall gameData > 0) $
+    drawAscii gameData (vec2 0.5 0.3) fontScale fontColor . Prelude.take (restOfBall gameData) $ repeat 'o'
+  where
+    fontScale :: Scale2
+    fontScale = (vec2 0.05 0.1)
+    fontColor :: Color4 GLfloat
+    fontColor = (Color4 0.95 0.95 1 1)
 
+
+-- | Render all of the actors.
+display :: Camera -> [Actor] -> IO ()
+display cam actors = do
   let viewMatrix = Main.lookAt (pos cam) (target cam) (up cam)
       projMatrix = (V.perspective 0.1 2000 (pi / 4) (4 / 3)) :: Mat44 GLfloat
-
-  let newLS = Prelude.map (toViewSpace viewMatrix) lightSource
+      newLS = Prelude.map (toViewSpace viewMatrix) lightSource
       progId = Shader.programId . Mesh.program . object $ actors !! 0
   alloca $ \ptr -> do
     let bufferId = 7
@@ -496,20 +508,8 @@ display gameData = do
     glBindBufferBase gl_UNIFORM_BUFFER bufferId buffer
     idx <- withGLstring "LightSourceBlock" $ glGetUniformBlockIndex progId
     glUniformBlockBinding progId idx bufferId
-
   drawMesh viewMatrix projMatrix actors
-  drawAscii gameData (vec2 0.5 0.7) fontScale fontColor "[SCORE]"
-  drawAscii gameData (vec2 0.5 0.6) fontScale fontColor . printf "%05d00" $ score gameData
-  drawAscii gameData (vec2 0.5 0.4) fontScale fontColor "[BALL]"
-  when (restOfBall gameData > 0) $
-    drawAscii gameData (vec2 0.5 0.3) fontScale fontColor . Prelude.take (restOfBall gameData) $ repeat 'o'
-
-  glFlush
   where
-    fontScale :: Scale2
-    fontScale = (vec2 0.05 0.1)
-    fontColor :: Color4 GLfloat
-    fontColor = (Color4 0.95 0.95 1 1)
     drawMesh :: Mat44 GLfloat -> Mat44 GLfloat -> [Actor] -> IO ()
     drawMesh _ _ [] = return ()
     drawMesh viewMatrix projMatrix (Actor mesh mat actorPos:xs) = do

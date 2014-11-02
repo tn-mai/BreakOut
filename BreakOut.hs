@@ -216,7 +216,6 @@ data Camera = Camera
   { pos :: Vec3 GLfloat
   , target :: Vec3 GLfloat
   , up :: Vec3 GLfloat
-  , shininess :: GLfloat
   }
 
 data GameData = GameData
@@ -264,7 +263,6 @@ renderingLoop window initialActors = do
         { pos = vec3 (75) (-100) (-450)
         , target = vec3 (75) (150) (0)
         , up = vec3 0 1 0
-        , shininess = 64
         }
     , cur = curPos
     , ballSpeed = (2, 2)
@@ -312,7 +310,6 @@ renderingLoop window initialActors = do
           { pos = vec3 0 (-150) (-250)
           , target = vec3 0 50 0
           , up = vec3 0 1 0
-          , shininess = 64
           }
         actors
       gd <- readIORef gameData

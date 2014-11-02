@@ -9,6 +9,7 @@ import Mesh (vec4)
 import qualified Shader as Shader
 import qualified BarMesh as BarMesh
 import qualified LightSource as LS
+import qualified TitleData
 
 import qualified "GLFW-b" Graphics.UI.GLFW as GLFW
 import Graphics.Rendering.OpenGL hiding (TextureObject, Line)
@@ -110,6 +111,21 @@ materials =
     }
   ]
 
+-- | the material list for the title mesh object.
+titleMaterials :: [LS.Material]
+titleMaterials =
+  [ LS.Material
+    { LS.baseColor = Mesh.vec4 0.7 0.2 0.1 1
+    , LS.metallic = 0.1
+    , LS.roughness = 0.3
+    }
+  , LS.Material
+    { LS.baseColor = Mesh.vec4 0.01 0.0 0.02 0.5
+    , LS.metallic = 0.0
+    , LS.roughness = 1.0
+    }
+  ]
+
 -- | The entry point.
 main :: IO ()
 main = do
@@ -147,11 +163,13 @@ main = do
   renderingLoop (fromJust r) $ paddleActor ++ ballActor ++ floorActors ++ wallActors ++ sideWallActors ++ blockActors
   Mesh.destroy cubeMesh
   App.destroy (fromJust r)
-  where
-    makeActors mesh mat posList =
-      Prelude.map
-        (\(x, y, z) -> Actor mesh mat (vec3 x y z))
-        posList
+
+-- | Make the actors from the initializer list.
+makeActors :: Mesh.Object -> Mat44 CFloat -> [(CFloat, CFloat, CFloat)] -> [Actor]
+makeActors mesh mat posList =
+  Prelude.map
+    (\(x, y, z) -> Actor mesh mat (vec3 x y z))
+    posList
 
 rgb8 :: GLint
 rgb8 = 0x8051
@@ -259,7 +277,7 @@ renderingLoop window initialActors = do
     , asciiTex = tex
     }
 
-  loop titleScene gameData
+  loop initTitleScene gameData
   where
     keyAction key taction faction = do
       keyState <- GLFW.getKey window key
@@ -268,17 +286,39 @@ renderingLoop window initialActors = do
     loop :: (IORef GameData -> IO ()) -> IORef GameData -> IO ()
     loop scene gameData = (GLFW.windowShouldClose window) >>= (flip unless) (scene gameData)
 
-    titleScene :: IORef GameData -> IO ()
-    titleScene gameData = do
-      gd <- readIORef gameData
+    initTitleScene :: IORef GameData -> IO ()
+    initTitleScene gameData = do
+      cubeMesh <- Mesh.create BarMesh.chamferedCubeVertices BarMesh.chamferedCubeIndices
+      let identityMatrix = V.identity :: Mat44 CFloat
+          actors = makeActors
+            cubeMesh { Mesh.material = titleMaterials !! 0 }
+            (V.scale (vec4 0.5 0.25 0.5 1) identityMatrix)
+            $ TitleData.positions
+          shadowActors = makeActors
+            cubeMesh { Mesh.material = titleMaterials !! 1 }
+            (V.translate (vec3 (5) (-25) 0) $ V.scale (vec4 0.5 0.25 0.01 1) identityMatrix)
+            $ TitleData.positions
+      loop (titleScene (shadowActors ++ actors)) gameData
+
+    titleScene :: [Actor] -> IORef GameData -> IO ()
+    titleScene actors gameData = do
       glClearColor 0.1 0.4 0.2 1
       glClear $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
-      drawAscii gd (vec2 (-0.9) 0.2) (vec2 0.2 0.4) (Color4 1 1 0.5 1) "BREAK OUT"
+      display
+        Camera
+          { pos = vec3 0 (-150) (-250)
+          , target = vec3 0 50 0
+          , up = vec3 0 1 0
+          , shininess = 64
+          }
+        actors
+      gd <- readIORef gameData
+      drawAscii gd (vec2 (-0.3) (-0.5)) (vec2 0.05 0.1) (Color4 1 1 1.0 1) "PUSH SPACE KEY"
       GLFW.swapBuffers window
       GLFW.pollEvents
       keyAction GLFW.Key'Space
         (loop levelScene gameData)
-        (loop titleScene gameData)
+        (loop (titleScene actors) gameData)
 
     gameOverScene :: IORef GameData -> IO ()
     gameOverScene gameData = do
@@ -302,7 +342,7 @@ renderingLoop window initialActors = do
               , restOfBall = 3
               , actorList = initialActors
               }
-            loop titleScene gameData'
+            loop initTitleScene gameData'
 
     missScene :: IORef GameData -> IO ()
     missScene gameData = do

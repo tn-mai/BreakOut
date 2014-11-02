@@ -367,6 +367,28 @@ renderingLoop window initialActors = do
               }
             loop levelScene gameData'
 
+    initLevelClearScene :: IORef GameData -> IO ()
+    initLevelClearScene gameData = do
+      start <- getCurrentTime
+      loop (levelClearScene start) gameData
+
+    levelClearScene :: UTCTime -> IORef GameData -> IO ()
+    levelClearScene start gameData = do
+      gd <- readIORef gameData
+      displayLevel gd
+      drawAscii gd (vec2 (-0.4) 0.0) (vec2 0.1 0.2) (Color4 0.1 0.2 1.0 1) "CLEAR"
+      GLFW.swapBuffers window
+      GLFW.pollEvents
+      now <- getCurrentTime
+      if realToFrac (diffUTCTime now start) < (3.0 :: Double)
+      then loop (levelClearScene start) gameData
+      else do
+        writeIORef gameData $ gd
+          { ballSpeed = (2,2)
+          , actorList = initialActors
+          }
+        loop levelScene gameData
+
     levelScene :: IORef GameData -> IO ()
     levelScene gameData = do
       gd <- readIORef gameData
@@ -383,6 +405,7 @@ renderingLoop window initialActors = do
           newPaddleX = max 20 . min 230 $ (x + delta)
 
       let ball = actors !! 1
+          blocks = Prelude.drop 78 actors
           (speedX, speedY) = ballSpeed gd
           (bx :. by :. bz :. ()) = Main.position ball
           (newBallX, newSpeedX) = boundWall (bx + speedX) speedX 270 (-20)
@@ -392,7 +415,7 @@ renderingLoop window initialActors = do
             then (newBallX, newBallY, newSpeedX, (-newSpeedY))
             else (newBallX, newBallY, newSpeedX, newSpeedY)
           (hitX, hitY, nonHitBlocks) =
-            intersectBlock (Line bx by (bx + speedX * 3) (by + speedY * 3)) (Prelude.drop 78 actors)
+            intersectBlock (Line bx by (bx + speedX * 3) (by + speedY * 3)) blocks
           newActors =
             ( paddle { Main.position = vec3 newPaddleX y z  }
             : ball { Main.position = vec3 newBallX' newBallY' bz }
@@ -414,7 +437,9 @@ renderingLoop window initialActors = do
         then loop missScene gameData
         else loop gameOverScene gameData
       else
-         loop levelScene gameData
+        if Prelude.length blocks > 0
+        then loop levelScene gameData
+        else loop initLevelClearScene gameData
 
     boundWall ballPos speed top bottom =
       let n = ballPos + speed

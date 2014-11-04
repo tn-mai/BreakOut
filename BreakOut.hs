@@ -18,6 +18,8 @@ import Graphics.Rendering.OpenGL.Raw as GLRaw
 import Graphics.Rendering.OpenGL.GL.ByteString
 import Data.Maybe (isNothing, fromJust)
 import Data.Char (ord)
+import Data.List (sortBy)
+import Data.Ord (comparing)
 import Data.Bits
 import Data.IORef
 import Data.Array.Storable
@@ -495,8 +497,12 @@ renderingLoop window initialActors = do
         ballLine = (bx, by, bx + vx * speed, by + vy * speed)
 
 intersectBlock :: Line GLfloat -> [Actor] -> (Bool, Bool, [Actor])
-intersectBlock _ [] = (False, False, [])
-intersectBlock ballLine@(Line x0 y0 x1 y1) (blockActor : xs) =
+intersectBlock ballLine@(Line x0 y0 x1 y1) blocks =
+  intersectBlock' ballLine $ sortBlocks (x0, y0) blocks
+
+intersectBlock' :: Line GLfloat -> [Actor] -> (Bool, Bool, [Actor])
+intersectBlock' _ [] = (False, False, [])
+intersectBlock' ballLine@(Line x0 y0 x1 y1) (blockActor : xs) =
   if ((y1 - y0) < 0 && intersect ballLine topLine) || ((y1 - y0) >= 0 && intersect ballLine bottomLine)
   then (hitX, True, nonHitBlocks)
   else
@@ -511,6 +517,13 @@ intersectBlock ballLine@(Line x0 y0 x1 y1) (blockActor : xs) =
     bottomLine = Line (bx + halfW) (by - halfH) (bx - halfW) (by - halfH)
     leftLine   = Line (bx - halfW) (by - halfH) (bx - halfW) (by + halfH)
     (hitX, hitY, nonHitBlocks) = intersectBlock ballLine xs
+
+-- | Sorting the blocks for the distance from center of the ball.
+sortBlocks :: (GLfloat, GLfloat) -> [Actor] -> [Actor]
+sortBlocks (x, y) blocks =
+  Prelude.map snd . sortBy (comparing fst) $ Prelude.map (\block -> (func block, block)) blocks
+  where
+    func a = (\(bx :. by :. _ :. ()) -> sqrt ((bx - x) ** 2 + (by - y) ** 2)) $ Main.position a
 
 data Line a = Line a a a a
 

@@ -267,8 +267,7 @@ renderingLoop window initialActors = do
     Left e -> hPutStrLn stderr e
     Right _ -> hPutStrLn stderr "success loading texture."
   let (Right tex) = eitherTex
-
-  gameData <- newIORef $ Main.GameData
+  loop initTitleScene Main.GameData
     { camera = Camera
         { pos = vec3 (75) (-100) (-450)
         , target = vec3 (75) (150) (0)
@@ -285,20 +284,18 @@ renderingLoop window initialActors = do
     , asciiTexLocation = asciiTexLoc
     , asciiTex = tex
     }
-
-  loop initTitleScene gameData
   where
     keyAction key taction faction = do
       keyState <- GLFW.getKey window key
       if (keyState == GLFW.KeyState'Pressed) then taction else faction
 
-    loop :: (IORef GameData -> IO ()) -> IORef GameData -> IO ()
+    loop :: (GameData -> IO ()) -> GameData -> IO ()
     loop scene gameData = do
       isExit <- GLFW.getKey window GLFW.Key'Escape
       when (isExit /= GLFW.KeyState'Pressed) $
         (threadDelay 10000) >> (GLFW.windowShouldClose window) >>= (flip unless) (scene gameData)
 
-    initTitleScene :: IORef GameData -> IO ()
+    initTitleScene :: GameData -> IO ()
     initTitleScene gameData = do
       cubeMesh <- Mesh.create BarMesh.chamferedCubeVertices BarMesh.chamferedCubeIndices
       let identityMatrix = V.identity :: Mat44 CFloat
@@ -312,7 +309,7 @@ renderingLoop window initialActors = do
             $ TitleData.positions
       loop (titleScene (shadowActors ++ actors)) gameData
 
-    titleScene :: [Actor] -> IORef GameData -> IO ()
+    titleScene :: [Actor] -> GameData -> IO ()
     titleScene actors gameData = do
       glClearColor 0.1 0.4 0.2 1
       glClear $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
@@ -323,23 +320,21 @@ renderingLoop window initialActors = do
           , up = vec3 0 1 0
           }
         actors
-      gd <- readIORef gameData
-      drawAscii gd (vec2 (-0.3) (-0.5)) (vec2 0.05 0.1) (Color4 1 1 1.0 1) "PUSH SPACE KEY"
+      drawAscii gameData (vec2 (-0.3) (-0.5)) (vec2 0.05 0.1) (Color4 1 1 1.0 1) "PUSH SPACE KEY"
       GLFW.swapBuffers window
       GLFW.pollEvents
       keyAction GLFW.Key'Space
         (loop levelScene gameData)
         (loop (titleScene actors) gameData)
 
-    gameOverScene :: IORef GameData -> IO ()
+    gameOverScene :: GameData -> IO ()
     gameOverScene gameData = do
       start <- getCurrentTime
       gameOverScene' start gameData
       where
         gameOverScene' start gameData' = do
-          gd <- readIORef gameData'
-          displayLevel gd
-          drawAscii gd (vec2 (-0.8) 0.0) (vec2 0.15 0.3) (Color4 0 0 0 1) "GAME OVER"
+          displayLevel gameData'
+          drawAscii gameData' (vec2 (-0.8) 0.0) (vec2 0.15 0.3) (Color4 0 0 0 1) "GAME OVER"
           GLFW.swapBuffers window
           GLFW.pollEvents
           now <- getCurrentTime
@@ -347,72 +342,66 @@ renderingLoop window initialActors = do
           if realToFrac (diffUTCTime now start) < (3.0 :: Double)
           then gameOverScene' start gameData'
           else do
-            writeIORef gameData' $ gd
+            loop initTitleScene gameData'
               { ballVector = initialBallVector
               , ballSpeed = initialBallSpeed
               , score = 0
               , restOfBall = 3
               , actorList = initialActors
               }
-            loop initTitleScene gameData'
 
-    missScene :: IORef GameData -> IO ()
+    missScene :: GameData -> IO ()
     missScene gameData = do
       start <- getCurrentTime
       missScene' start gameData
       where
         missScene' start gameData' = do
-          gd <- readIORef gameData'
-          displayLevel gd
-          drawAscii gd (vec2 (-0.4) 0.0) (vec2 0.1 0.2) (Color4 1 0.2 0.1 1) "MISS"
+          displayLevel gameData'
+          drawAscii gameData' (vec2 (-0.4) 0.0) (vec2 0.1 0.2) (Color4 1 0.2 0.1 1) "MISS"
           GLFW.swapBuffers window
           GLFW.pollEvents
           now <- getCurrentTime
           if realToFrac (diffUTCTime now start) < (3.0 :: Double)
           then missScene' start gameData'
           else do
-            let (paddle:ball:others) = actorList gd
+            let (paddle:ball:others) = actorList gameData'
                 (px :. _ :. _) = Main.position paddle
-            writeIORef gameData' $ gd
+            loop levelScene gameData'
               { ballVector = initialBallVector
               , ballSpeed = initialBallSpeed
               , actorList = paddle : ball { Main.position = vec3 px 100 (-30) } : others
               }
-            loop levelScene gameData'
 
-    initLevelClearScene :: IORef GameData -> IO ()
+    initLevelClearScene :: GameData -> IO ()
     initLevelClearScene gameData = do
       start <- getCurrentTime
       loop (levelClearScene start) gameData
 
-    levelClearScene :: UTCTime -> IORef GameData -> IO ()
+    levelClearScene :: UTCTime -> GameData -> IO ()
     levelClearScene start gameData = do
-      gd <- readIORef gameData
-      displayLevel gd
-      drawAscii gd (vec2 (-0.4) 0.0) (vec2 0.1 0.2) (Color4 0.1 0.2 1.0 1) "CLEAR"
+      displayLevel gameData
+      drawAscii gameData (vec2 (-0.4) 0.0) (vec2 0.1 0.2) (Color4 0.1 0.2 1.0 1) "CLEAR"
       GLFW.swapBuffers window
       GLFW.pollEvents
       now <- getCurrentTime
       if realToFrac (diffUTCTime now start) < (3.0 :: Double)
       then loop (levelClearScene start) gameData
       else do
-        writeIORef gameData $ gd
+        loop levelScene gameData
           { ballVector = initialBallVector
           , ballSpeed = initialBallSpeed
           , actorList = initialActors
           }
-        loop levelScene gameData
 
-    levelScene :: IORef GameData -> IO ()
+    levelScene :: GameData -> IO ()
     levelScene gameData = do
-      gd <- readIORef gameData
-      let actors = actorList gd
-      displayLevel gd
+      let actors = actorList gameData
+      displayLevel gameData
       GLFW.swapBuffers window
       GLFW.pollEvents
 
       (newX, newY) <- GLFW.getCursorPos window
-      let (prevX, _) = cur gd
+      let (prevX, _) = cur gameData
           delta = realToFrac ((newX - prevX) * (-1)) :: GLfloat
           paddle = actors !! 0
           (x :. y :. z :. ()) = Main.position paddle
@@ -420,11 +409,11 @@ renderingLoop window initialActors = do
 
       let ball = actors !! 1
           blocks = Prelude.drop 78 actors
-          (speedX :. speedY :. ()) = ballVector gd
+          (speedX :. speedY :. ()) = ballVector gameData
           (bx :. by :. _ :. ()) = Main.position ball
           (newBallX, newSpeedX) = boundWall (bx + speedX) speedX 270 (-20)
           (newBallY, newSpeedY) = boundWall (by + speedY) speedY 370 (-20)
-          (newBall, newSpeedX' :. newSpeedY' :. (), newSpeed) = boundPaddle paddle (ball, vec2 newSpeedX newSpeedY, ballSpeed gd)
+          (newBall, newSpeedX' :. newSpeedY' :. (), newSpeed) = boundPaddle paddle (ball, vec2 newSpeedX newSpeedY, ballSpeed gameData)
           (hitX, hitY, nonHitBlocks) =
             intersectBlock (Line bx by (bx + speedX * 3) (by + speedY * 3)) blocks
           newActors =
@@ -434,24 +423,24 @@ renderingLoop window initialActors = do
             ) ++ nonHitBlocks
           hasMiss = (\(_:.ny:._:.()) -> ny <= y - 25) (Main.position newBall) :: Bool
 
-      writeIORef gameData $ gd
-        { cur = (newX, newY)
-        , ballVector = vec2 (if hitX then (-newSpeedX') else newSpeedX') (if hitY then (-newSpeedY') else newSpeedY')
-        , ballSpeed = (ballSpeed gd) + (if newSpeed /= (ballSpeed gd) then 0.1 else 0)
-        , score = (score gd) + if hitX || hitY then 1 else 0
-        , restOfBall = (restOfBall gd) - (if hasMiss then 1 else 0)
-        , actorList = newActors
-        }
+      let newGameData = gameData
+            { cur = (newX, newY)
+            , ballVector = vec2 (if hitX then (-newSpeedX') else newSpeedX') (if hitY then (-newSpeedY') else newSpeedY')
+            , ballSpeed = (ballSpeed gameData) + (if newSpeed /= (ballSpeed gameData) then 0.1 else 0)
+            , score = (score gameData) + if hitX || hitY then 1 else 0
+            , restOfBall = (restOfBall gameData) - (if hasMiss then 1 else 0)
+            , actorList = newActors
+            }
 
       if hasMiss
       then
-        if restOfBall gd > 1
-        then loop missScene gameData
-        else loop gameOverScene gameData
+        if restOfBall gameData > 1
+        then loop missScene newGameData
+        else loop gameOverScene newGameData
       else
         if Prelude.length blocks > 0
-        then loop levelScene gameData
-        else loop initLevelClearScene gameData
+        then loop levelScene newGameData
+        else loop initLevelClearScene newGameData
 
     boundWall ballPos speed top bottom =
       let n = ballPos + speed

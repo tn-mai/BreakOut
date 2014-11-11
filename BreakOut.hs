@@ -427,7 +427,7 @@ renderingLoop window initialActors = do
           (newBallY, newSpeedY) = boundWall (by + speedY) speedY 370 (-20)
           (newBall, newSpeedX' :. newSpeedY' :. (), newSpeed) = boundPaddle paddle (ball, vec2 newSpeedX newSpeedY, ballSpeed gameData)
           (hitX, hitY, nonHitBlocks) =
-            intersectBlock (Line bx by (bx + speedX * 3) (by + speedY * 3)) blocks
+            intersectBlock (bx, by, (bx + speedX * 3), (by + speedY * 3)) blocks
           newActors =
             ( paddle { Main.position = vec3 newPaddleX y z  }
             : newBall
@@ -497,27 +497,28 @@ renderingLoop window initialActors = do
         paddleLine = (pLeft, pTop, pRight, pTop)
         ballLine = (bx, by, bx + vx * speed, by + vy * speed)
 
-intersectBlock :: Line GLfloat -> [Actor] -> (Bool, Bool, [Actor])
-intersectBlock ballLine@(Line x0 y0 x1 y1) blocks =
+intersectBlock :: Collision.Line GLfloat -> [Actor] -> (Bool, Bool, [Actor])
+intersectBlock ballLine@(x0, y0, x1, y1) blocks =
   intersectBlock' ballLine $ sortBlocks (x0, y0) blocks
 
-intersectBlock' :: Line GLfloat -> [Actor] -> (Bool, Bool, [Actor])
+intersectBlock' :: Collision.Line GLfloat -> [Actor] -> (Bool, Bool, [Actor])
 intersectBlock' _ [] = (False, False, [])
-intersectBlock' ballLine@(Line x0 y0 x1 y1) (blockActor : xs) =
-  if ((y1 - y0) < 0 && intersect ballLine topLine) || ((y1 - y0) >= 0 && intersect ballLine bottomLine)
-  then (hitX, True, nonHitBlocks)
-  else
-    if ((x1 - x0) >= 0 && intersect ballLine leftLine) || ((x1 - x0) < 0 && intersect ballLine rightLine)
-    then (True, hitY, nonHitBlocks)
-    else (hitX, hitY, blockActor : nonHitBlocks)
+intersectBlock' ballLine@(x0, y0, x1, y1) (blockActor : xs) =
+  if hitB || hitT || hitL || hitR
+  then (hitL || hitR || inheritHitX, hitT || hitB || inheritHitY, nonHitBlocks)
+  else (hitL || hitR || inheritHitX, hitT || hitB || inheritHitY, blockActor : nonHitBlocks)
   where
     (bx :. by :. _ :. ()) = Main.position blockActor
     (halfW, halfH) = (25, 12.5)
-    topLine    = Line (bx - halfW) (by + halfH) (bx + halfW) (by + halfH)
-    rightLine  = Line (bx + halfW) (by + halfH) (bx + halfW) (by - halfH)
-    bottomLine = Line (bx + halfW) (by - halfH) (bx - halfW) (by - halfH)
-    leftLine   = Line (bx - halfW) (by - halfH) (bx - halfW) (by + halfH)
-    (hitX, hitY, nonHitBlocks) = intersectBlock ballLine xs
+    hitB = hitOnSide (y0 <= y1) ballLine ((bx + halfW), (by - halfH), (bx - halfW), (by - halfH))
+    hitT = hitOnSide (y0 > y1)  ballLine ((bx - halfW), (by + halfH), (bx + halfW), (by + halfH))
+    hitL = hitOnSide (x0 <= x1) ballLine ((bx - halfW), (by - halfH), (bx - halfW), (by + halfH))
+    hitR = hitOnSide (x0 > x1)  ballLine ((bx + halfW), (by + halfH), (bx + halfW), (by - halfH))
+    hitOnSide :: Bool -> Collision.Line GLfloat -> Collision.Line GLfloat -> Bool
+    hitOnSide active bl side = if active
+      then maybe False (\_ -> True) $ Collision.intersection bl side
+      else False
+    (inheritHitX, inheritHitY, nonHitBlocks) = intersectBlock' ballLine xs
 
 -- | Sorting the blocks for the distance from center of the ball.
 sortBlocks :: (GLfloat, GLfloat) -> [Actor] -> [Actor]
@@ -525,17 +526,6 @@ sortBlocks (x, y) blocks =
   Prelude.map snd . sortBy (comparing fst) $ Prelude.map (\block -> (func block, block)) blocks
   where
     func a = (\(bx :. by :. _ :. ()) -> sqrt ((bx - x) ** 2 + (by - y) ** 2)) $ Main.position a
-
-data Line a = Line a a a a
-
-intersect :: Line GLfloat -> Line GLfloat -> Bool
-intersect (Line bx by cx cy) (Line px py qx qy) =
-  if ((bx - cx) * (py - by) + (by - cy) * (bx - px)) * ((bx - cx) * (qy - by) + (by - cy) * (bx - qx)) < (0 :: GLfloat)
-  then
-    if ((px - qx) * (by - py) + (py - qy) * (px - bx)) * ((px - qx) * (cy - py) + (py - qy) * (px - cx)) < (0 :: GLfloat)
-    then True
-    else False
-  else False
 
 -- | Make the view matrix looking at any point.
 lookAt :: Floating a => Vec3 a -> Vec3 a -> Vec3 a -> Mat44 a

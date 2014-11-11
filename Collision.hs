@@ -1,6 +1,9 @@
 module Collision
   ( intersection
   , hasIntersection
+  , Line
+  , Point
+  , Vec2
   )
 where
 

@@ -34,7 +34,7 @@ import Foreign.C.Types
 import Foreign.Marshal.Alloc
 import Foreign.Marshal.Array
 import Foreign.Storable
-import Codec.Image.PNG
+import "pngload" Codec.Image.PNG
 
 -- | Make the 2 coordinate vector.
 vec2 :: forall a a1. a -> a1 -> a :. (a1 :. ())

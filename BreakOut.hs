@@ -21,7 +21,6 @@ import Data.Char (ord)
 import Data.List (sortBy)
 import Data.Ord (comparing)
 import Data.Bits
-import Data.IORef
 import Data.Array.Storable
 import Data.Time.Clock
 import Data.Vec as V
@@ -327,50 +326,50 @@ renderingLoop window initialActors = do
         (loop levelScene gameData)
         (loop (titleScene actors) gameData)
 
-    gameOverScene :: GameData -> IO ()
-    gameOverScene gameData = do
+    initGameOverScene :: GameData -> IO ()
+    initGameOverScene gameData = do
       start <- getCurrentTime
-      gameOverScene' start gameData
-      where
-        gameOverScene' start gameData' = do
-          displayLevel gameData'
-          drawAscii gameData' (vec2 (-0.8) 0.0) (vec2 0.15 0.3) (Color4 0 0 0 1) "GAME OVER"
-          GLFW.swapBuffers window
-          GLFW.pollEvents
-          now <- getCurrentTime
-          keyAction GLFW.Key'Space (putStrLn "on") (return ())
-          if realToFrac (diffUTCTime now start) < (3.0 :: Double)
-          then gameOverScene' start gameData'
-          else do
-            loop initTitleScene gameData'
-              { ballVector = initialBallVector
-              , ballSpeed = initialBallSpeed
-              , score = 0
-              , restOfBall = 3
-              , actorList = initialActors
-              }
+      loop (gameOverScene start) gameData
 
-    missScene :: GameData -> IO ()
-    missScene gameData = do
+    gameOverScene start gameData = do
+      displayLevel gameData
+      drawAscii gameData (vec2 (-0.8) 0.0) (vec2 0.15 0.3) (Color4 0 0 0 1) "GAME OVER"
+      GLFW.swapBuffers window
+      GLFW.pollEvents
+      now <- getCurrentTime
+      keyAction GLFW.Key'Space (putStrLn "on") (return ())
+      if realToFrac (diffUTCTime now start) < (3.0 :: Double)
+      then do loop (gameOverScene start) gameData
+      else do
+        loop initTitleScene gameData
+          { ballVector = initialBallVector
+          , ballSpeed = initialBallSpeed
+          , score = 0
+          , restOfBall = 3
+          , actorList = initialActors
+          }
+
+    initMissScene :: GameData -> IO ()
+    initMissScene gameData = do
       start <- getCurrentTime
-      missScene' start gameData
-      where
-        missScene' start gameData' = do
-          displayLevel gameData'
-          drawAscii gameData' (vec2 (-0.4) 0.0) (vec2 0.1 0.2) (Color4 1 0.2 0.1 1) "MISS"
-          GLFW.swapBuffers window
-          GLFW.pollEvents
-          now <- getCurrentTime
-          if realToFrac (diffUTCTime now start) < (3.0 :: Double)
-          then missScene' start gameData'
-          else do
-            let (paddle:ball:others) = actorList gameData'
-                (px :. _ :. _) = Main.position paddle
-            loop levelScene gameData'
-              { ballVector = initialBallVector
-              , ballSpeed = initialBallSpeed
-              , actorList = paddle : ball { Main.position = vec3 px 100 (-30) } : others
-              }
+      loop (missScene start) gameData
+
+    missScene start gameData = do
+      displayLevel gameData
+      drawAscii gameData (vec2 (-0.4) 0.0) (vec2 0.1 0.2) (Color4 1 0.2 0.1 1) "MISS"
+      GLFW.swapBuffers window
+      GLFW.pollEvents
+      now <- getCurrentTime
+      if realToFrac (diffUTCTime now start) < (3.0 :: Double)
+      then loop (missScene start) gameData
+      else do
+        let (paddle:ball:others) = actorList gameData
+            (px :. _ :. _) = Main.position paddle
+        loop levelScene gameData
+          { ballVector = initialBallVector
+          , ballSpeed = curLevelBallSpeed $ level gameData
+          , actorList = paddle : ball { Main.position = vec3 px 100 (-30) } : others
+          }
 
     initLevelClearScene :: GameData -> IO ()
     initLevelClearScene gameData = do
@@ -435,8 +434,8 @@ renderingLoop window initialActors = do
       if hasMiss
       then
         if restOfBall gameData > 1
-        then loop missScene newGameData
-        else loop gameOverScene newGameData
+        then loop initMissScene newGameData
+        else loop initGameOverScene newGameData
       else
         if Prelude.length blocks > 0
         then loop levelScene newGameData

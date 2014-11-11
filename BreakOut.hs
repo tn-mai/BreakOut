@@ -225,6 +225,7 @@ data GameData = GameData
   , cur :: (Double, Double) -- for mouse movement.
   , ballVector :: Vec2 GLfloat
   , ballSpeed :: GLfloat
+  , level :: Int
   , score :: Int
   , restOfBall :: Int
   , actorList :: [Actor]
@@ -238,7 +239,16 @@ initialBallVector :: Vec2 GLfloat
 initialBallVector = V.normalize $ vec2 1 1
 
 initialBallSpeed :: GLfloat
-initialBallSpeed = 3
+initialBallSpeed = 4
+
+maxInitialBallSpeed :: GLfloat
+maxInitialBallSpeed = 8
+
+maxBallSpeed :: GLfloat
+maxBallSpeed = 16
+
+curLevelBallSpeed :: Int -> GLfloat
+curLevelBallSpeed lv = initialBallSpeed + (min maxInitialBallSpeed $ 0.2 * (fromIntegral lv))
 
 -- | The main loop in the game.
 renderingLoop :: GLFW.Window -> [Actor] -> IO ()
@@ -275,6 +285,7 @@ renderingLoop window initialActors = do
     , cur = curPos
     , ballVector = initialBallVector
     , ballSpeed = initialBallSpeed
+    , level = 1
     , score = 0
     , restOfBall = 3
     , actorList = initialActors
@@ -344,6 +355,7 @@ renderingLoop window initialActors = do
         loop initTitleScene gameData
           { ballVector = initialBallVector
           , ballSpeed = initialBallSpeed
+          , level = 1
           , score = 0
           , restOfBall = 3
           , actorList = initialActors
@@ -388,7 +400,8 @@ renderingLoop window initialActors = do
       else do
         loop levelScene gameData
           { ballVector = initialBallVector
-          , ballSpeed = initialBallSpeed
+          , ballSpeed = curLevelBallSpeed $ level gameData
+          , level = (level gameData) + 1
           , actorList = initialActors
           }
 
@@ -578,6 +591,8 @@ displayLevel gameData = do
   drawAscii gameData (vec2 0.5 0.4) fontScale fontColor "[BALL]"
   when (restOfBall gameData > 0) $
     drawAscii gameData (vec2 0.5 0.3) fontScale fontColor . Prelude.take (restOfBall gameData) $ repeat 'o'
+  drawAscii gameData (vec2 0.5 0.1) fontScale fontColor "[LEVEL]"
+  drawAscii gameData (vec2 0.5 0.0) fontScale fontColor . printf "%03d" $ level gameData
   where
     fontScale :: Scale2
     fontScale = (vec2 0.05 0.1)

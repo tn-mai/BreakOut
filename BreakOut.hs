@@ -427,7 +427,7 @@ renderingLoop window initialActors = do
           (newBallY, newSpeedY) = boundWall (by + speedY) speedY 370 (-20)
           (newBall, newSpeedX' :. newSpeedY' :. (), newSpeed) = boundPaddle paddle (ball, vec2 newSpeedX newSpeedY, ballSpeed gameData)
           (hitX, hitY, nonHitBlocks) =
-            intersectBlock (bx, by, (bx + speedX * 3), (by + speedY * 3)) blocks
+            intersectBlock (bx, by, (bx + speedX * 2), (by + speedY * 2)) blocks
           newActors =
             ( paddle { Main.position = vec3 newPaddleX y z  }
             : newBall
@@ -504,16 +504,19 @@ intersectBlock ballLine@(x0, y0, x1, y1) blocks =
 intersectBlock' :: Collision.Line GLfloat -> [Actor] -> (Bool, Bool, [Actor])
 intersectBlock' _ [] = (False, False, [])
 intersectBlock' ballLine@(x0, y0, x1, y1) (blockActor : xs) =
-  if hitB || hitT || hitL || hitR
-  then (hitL || hitR || inheritHitX, hitT || hitB || inheritHitY, nonHitBlocks)
-  else (hitL || hitR || inheritHitX, hitT || hitB || inheritHitY, blockActor : nonHitBlocks)
+  if hitB || hitT
+  then (inheritHitX, hitB || hitT || inheritHitY, nonHitBlocks)
+  else
+    if hitL || hitR
+    then (hitL || hitR || inheritHitX, inheritHitY, nonHitBlocks)
+    else (inheritHitX, inheritHitY, blockActor : nonHitBlocks)
   where
     (bx :. by :. _ :. ()) = Main.position blockActor
     (halfW, halfH) = (25, 12.5)
-    hitB = hitOnSide (y0 <= y1) ballLine ((bx + halfW), (by - halfH), (bx - halfW), (by - halfH))
-    hitT = hitOnSide (y0 > y1)  ballLine ((bx - halfW), (by + halfH), (bx + halfW), (by + halfH))
-    hitL = hitOnSide (x0 <= x1) ballLine ((bx - halfW), (by - halfH), (bx - halfW), (by + halfH))
-    hitR = hitOnSide (x0 > x1)  ballLine ((bx + halfW), (by + halfH), (bx + halfW), (by - halfH))
+    hitB = hitOnSide (y0 < y1) ballLine ((bx + halfW), (by - halfH), (bx - halfW), (by - halfH))
+    hitT = hitOnSide (y0 > y1) ballLine ((bx - halfW), (by + halfH), (bx + halfW), (by + halfH))
+    hitL = hitOnSide (x0 < x1) ballLine ((bx - halfW), (by - halfH), (bx - halfW), (by + halfH))
+    hitR = hitOnSide (x0 > x1) ballLine ((bx + halfW), (by + halfH), (bx + halfW), (by - halfH))
     hitOnSide :: Bool -> Collision.Line GLfloat -> Collision.Line GLfloat -> Bool
     hitOnSide active bl side = if active
       then maybe False (\_ -> True) $ Collision.intersection bl side

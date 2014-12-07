@@ -421,13 +421,13 @@ renderingLoop window initialActors = do
 
       let ball = actors !! 1
           blocks = Prelude.drop 78 actors
-          (speedX :. speedY :. ()) = ballVector gameData
+          (vecX :. vecY :. ()) = ballVector gameData
           (bx :. by :. _ :. ()) = Main.position ball
-          (newBallX, newSpeedX) = boundWall (bx + speedX) speedX 270 (-20)
-          (newBallY, newSpeedY) = boundWall (by + speedY) speedY 370 (-20)
-          (newBall, newSpeedX' :. newSpeedY' :. (), newSpeed) = boundPaddle paddle (ball, vec2 newSpeedX newSpeedY, ballSpeed gameData)
+          (newBallX, newVecX) = boundWall (bx + vecX) vecX 270 (-20)
+          (newBallY, newVecY) = boundWall (by + vecY) vecY 370 (-20)
+          (newBall, newSpeedX' :. newSpeedY' :. (), newSpeed) = boundPaddle paddle (ball, vec2 newVecX newVecY, ballSpeed gameData)
           (hitX, hitY, nonHitBlocks) =
-            intersectBlock (bx, by, (bx + speedX * 2), (by + speedY * 2)) blocks
+            intersectBlock (bx, by, (bx + newVecX * newSpeed), (by + newVecY * newSpeed)) blocks
           newActors =
             ( paddle { Main.position = vec3 newPaddleX y z  }
             : newBall

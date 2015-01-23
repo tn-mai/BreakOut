@@ -128,6 +128,21 @@ titleMaterials =
     }
   ]
 
+blockScaleX :: GLfloat
+blockScaleX = 2.5
+blockSizeX :: GLfloat
+blockSizeX = BarMesh.cubeSize * blockScaleX
+
+blockScaleY :: GLfloat
+blockScaleY = 1.25
+blockSizeY :: GLfloat
+blockSizeY = BarMesh.cubeSize * blockScaleY
+
+blockScaleZ :: GLfloat
+blockScaleZ = 1.25
+blockSizeZ :: GLfloat
+blockSizeZ = BarMesh.cubeSize * blockScaleZ
+
 -- | The entry point.
 main :: IO ()
 main = do
@@ -155,7 +170,7 @@ main = do
         $ [(125, 50, -30)]
       blockActors = makeActors
         cubeMesh { Mesh.material = materials !! 3 }
-        (V.scale (vec4 2.5 1.25 1.25 1) identityMatrix)
+        (V.scale (vec4 blockScaleX blockScaleY blockScaleZ 1) identityMatrix)
         $ [(x, y, (-30)) | x <- [25, 75 .. 200], y <- [200, 225 .. 300]]
       ballActor = makeActors
         cubeMesh { Mesh.material = materials !! 4 }

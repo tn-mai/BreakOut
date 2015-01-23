@@ -1,6 +1,7 @@
 module BarMesh
   ( cubeVertices
   , cubeIndices
+  , cubeSize
   , chamferedCubeVertices
   , chamferedCubeIndices
   )
@@ -22,6 +23,9 @@ import Graphics.Rendering.OpenGL.Raw.Types
 
   (position x y z) (normal x y z) (color r g b a)
 --}
+cubeSize :: GLfloat
+cubeSize = 20
+
 cubeVertices :: [GLfloat]
 cubeVertices =
   -- front

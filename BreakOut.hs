@@ -469,6 +469,7 @@ renderingLoop window initialActors = do
         then loop levelScene newGameData
         else loop initLevelClearScene newGameData
 
+    boundWall :: GLfloat -> GLfloat -> GLfloat -> GLfloat -> (GLfloat, GLfloat)
     boundWall ballPos speed top bottom =
       let n = ballPos + speed
       in

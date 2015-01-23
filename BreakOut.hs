@@ -484,6 +484,7 @@ renderingLoop window initialActors = do
                 -> (Actor, Vec2 GLfloat, GLfloat) -- | ball actor, ball vector and speed.
                 -> (Actor, Vec2 GLfloat, GLfloat) -- | result of new ball actor, ball vector and speed.
     boundPaddle paddle (ball, vx :. vy :. (), speed) =
+      -- if ball y vector is upward, don't check collision between paddle.
       if vy >= 0
       then
         ( ball { Main.position = vec3 (bx + vx * speed) (by + vy * speed) bz }

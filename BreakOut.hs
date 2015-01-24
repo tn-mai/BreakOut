@@ -520,23 +520,23 @@ intersectBlock ballLine@(x0, y0, x1, y1) blocks =
 
 intersectBlock' :: Collision.Line GLfloat -> [Actor] -> (Bool, Bool, [Actor])
 intersectBlock' _ [] = (False, False, [])
-intersectBlock' ballLine@(x0, y0, x1, y1) (blockActor : xs) =
+intersectBlock' ballLine@(bx0, by0, bx1, by1) (blockActor : xs) =
   if hitB || hitT
-  then (inheritHitX, hitB || hitT || inheritHitY, nonHitBlocks)
+  then (inheritHitX, (hitB || hitT || inheritHitY), nonHitBlocks)
   else
     if hitL || hitR
-    then (hitL || hitR || inheritHitX, inheritHitY, nonHitBlocks)
+    then ((hitL || hitR || inheritHitX), inheritHitY, nonHitBlocks)
     else (inheritHitX, inheritHitY, blockActor : nonHitBlocks)
   where
-    (bx :. by :. _ :. ()) = Main.position blockActor
+    (x :. y :. _ :. ()) = Main.position blockActor
     (halfW, halfH) = (25, 12.5)
-    hitB = hitOnSide (y0 < y1) ballLine ((bx + halfW), (by - halfH), (bx - halfW), (by - halfH))
-    hitT = hitOnSide (y0 > y1) ballLine ((bx - halfW), (by + halfH), (bx + halfW), (by + halfH))
-    hitL = hitOnSide (x0 < x1) ballLine ((bx - halfW), (by - halfH), (bx - halfW), (by + halfH))
-    hitR = hitOnSide (x0 > x1) ballLine ((bx + halfW), (by + halfH), (bx + halfW), (by - halfH))
-    hitOnSide :: Bool -> Collision.Line GLfloat -> Collision.Line GLfloat -> Bool
-    hitOnSide active bl side = if active
-      then maybe False (\_ -> True) $ Collision.intersection bl side
+    hitB = hitOnSide (by0 < by1) ((x + halfW), (y - halfH), (x - halfW), (y - halfH))
+    hitT = hitOnSide (by0 > by1) ((x - halfW), (y + halfH), (x + halfW), (y + halfH))
+    hitL = hitOnSide (bx0 < bx1) ((x - halfW), (y - halfH), (x - halfW), (y + halfH))
+    hitR = hitOnSide (bx0 > bx1) ((x + halfW), (y + halfH), (x + halfW), (y - halfH))
+    hitOnSide :: Bool -> Collision.Line GLfloat -> Bool
+    hitOnSide active side = if active
+      then maybe False (\_ -> True) $ Collision.intersection ballLine side
       else False
     (inheritHitX, inheritHitY, nonHitBlocks) = intersectBlock' ballLine xs
 

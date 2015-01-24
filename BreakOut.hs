@@ -628,13 +628,11 @@ display cam actors = do
     glBindBufferBase gl_UNIFORM_BUFFER bufferId buffer
     idx <- withGLstring "LightSourceBlock" $ glGetUniformBlockIndex progId
     glUniformBlockBinding progId idx bufferId
-  drawMesh viewMatrix projMatrix actors
-  where
-    drawMesh :: Mat44 GLfloat -> Mat44 GLfloat -> [Actor] -> IO ()
-    drawMesh _ _ [] = return ()
-    drawMesh viewMatrix projMatrix (Actor mesh mat actorPos:xs) = do
+  mapM_
+    (\(Actor mesh mat actorPos) -> do
       Mesh.draw mesh (V.translate actorPos mat) viewMatrix projMatrix
-      drawMesh viewMatrix projMatrix xs
+    )
+    actors
 
 drawAscii :: GameData -> Offset2 -> Scale2 -> Color4 GLfloat -> String -> IO ()
 drawAscii gameData (ox :. oy :. ()) (sx :. sy :. ()) (Color4 r g b a) str = do

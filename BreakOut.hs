@@ -241,6 +241,7 @@ data Camera = Camera
 
 data GameData = GameData
   { window :: GLFW.Window
+  , env :: Mesh.Environment
   , camera :: Camera
   , cubeMesh :: Mesh.Object
   , cur :: (Double, Double) -- for mouse movement.
@@ -297,8 +298,10 @@ renderingLoop window cubeMesh = do
     Left e -> hPutStrLn stderr e
     Right _ -> hPutStrLn stderr "success loading texture."
   let (Right tex) = eitherTex
+  menv <- Mesh.createEnvironment
   loop initTitleScene Main.GameData
     { window = window
+    , env = menv
     , camera = Camera
         { pos = vec3 (75) (-100) (-450)
         , target = vec3 (75) (150) (0)
@@ -346,6 +349,7 @@ titleScene actors gameData = do
   glClearColor 0.1 0.4 0.2 1
   glClear $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
   display
+    (env gameData)
     Camera
       { pos = vec3 0 (-150) (-250)
       , target = vec3 0 50 0
@@ -602,7 +606,7 @@ displayLevel :: GameData -> IO ()
 displayLevel gameData = do
   glClearColor 0.1 0.4 0.2 1
   glClear $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
-  display (camera gameData) (actorList gameData)
+  display (env gameData) (camera gameData) (actorList gameData)
   drawAscii gameData (vec2 0.5 0.7) fontScale fontColor "[SCORE]"
   drawAscii gameData (vec2 0.5 0.6) fontScale fontColor . printf "%05d00" $ score gameData
   drawAscii gameData (vec2 0.5 0.4) fontScale fontColor "[BALL]"
@@ -618,8 +622,8 @@ displayLevel gameData = do
 
 
 -- | Render all of the actors.
-display :: Camera -> [Actor] -> IO ()
-display cam actors = do
+display :: Mesh.Environment -> Camera -> [Actor] -> IO ()
+display env cam actors = do
   let viewMatrix = Main.lookAt (pos cam) (target cam) (up cam)
       projMatrix = (V.perspective 0.1 2000 (pi / 4) (4 / 3)) :: Mat44 GLfloat
       newLS = Prelude.map (toViewSpace viewMatrix) lightSource
@@ -637,7 +641,7 @@ display cam actors = do
     glUniformBlockBinding progId idx bufferId
   mapM_
     (\(Actor mesh mat actorPos) -> do
-      Mesh.draw mesh (V.translate actorPos mat) viewMatrix projMatrix
+      Mesh.draw env mesh (V.translate actorPos mat) viewMatrix projMatrix
     )
     actors
 

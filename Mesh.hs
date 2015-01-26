@@ -3,7 +3,9 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
 module Mesh
-  ( Object(..)
+  ( Environment(..)
+  , createEnvironment
+  , Object(..)
   , create
   , draw
   , destroy
@@ -31,6 +33,25 @@ import LightSource
 
 vec4 :: forall a a1 a2 a3. a -> a1 -> a2 -> a3 -> a :. (a1 :. (a2 :. (a3 :. ())))
 vec4 x y z w = x :. y :. z :. w :. ()
+
+data Environment = Environment
+  { materialBufferId :: CUInt
+  }
+
+createEnvironment :: IO Environment
+createEnvironment = do
+  id <- alloca $ \ptr -> do
+    let bufferId = 6
+    glGenBuffers 1 ptr
+    buffer <- peek ptr
+    glBindBuffer gl_UNIFORM_BUFFER buffer
+    glBindBufferBase gl_UNIFORM_BUFFER bufferId buffer
+    glBufferData gl_UNIFORM_BUFFER 128 nullPtr gl_DYNAMIC_DRAW
+    glBindBuffer gl_UNIFORM_BUFFER 0
+    return buffer
+  return Environment
+    { materialBufferId = fromIntegral $ toInteger id
+    }
 
 -- | The object that has any rendering status.
 data Object = Object
@@ -138,8 +159,8 @@ instance NearZero CFloat where
   nearZero _ = False
 
 -- | Draw the object.
-draw :: Object -> Mat44 GLfloat -> Mat44 GLfloat -> Mat44 GLfloat -> IO ()
-draw obj modelMatrix viewMatrix projectionMatrix = do
+draw :: Environment -> Object -> Mat44 GLfloat -> Mat44 GLfloat -> Mat44 GLfloat -> IO ()
+draw env obj modelMatrix viewMatrix projectionMatrix = do
   Shader.useProgram $ Just (program obj)
   bindVertexArrayObject $= Just (vao obj)
 
@@ -155,17 +176,14 @@ draw obj modelMatrix viewMatrix projectionMatrix = do
   with mvMatrix $ glUniformMatrix4fv (fromIntegral mvLocation) 1 (fromBool True) . castPtr
   with normalMatrix $ glUniformMatrix4fv (fromIntegral normalLocation) 1 (fromBool True) . castPtr
 
-  alloca $ \ptr -> do
-    let bufferId = 6
-    glGenBuffers 1 ptr
-    buffer <- peek ptr
-    glBindBuffer gl_UNIFORM_BUFFER buffer
-    with (material obj) $ \mat -> do
-      glBufferData gl_UNIFORM_BUFFER (fromIntegral (sizeOf (material obj))) mat gl_DYNAMIC_DRAW
-    glBindBuffer gl_UNIFORM_BUFFER 0
-    glBindBufferBase gl_UNIFORM_BUFFER bufferId buffer
-    idx <- withGLstring "Material" $ glGetUniformBlockIndex (Shader.programId $ program obj)
-    glUniformBlockBinding (Shader.programId (program obj)) idx bufferId
+  let bufferId = 6
+  glBindBuffer gl_UNIFORM_BUFFER $ materialBufferId env
+  with (material obj) $ \mat -> do
+    glBufferSubData gl_UNIFORM_BUFFER 0 (fromIntegral (sizeOf (material obj))) mat
+  glBindBuffer gl_UNIFORM_BUFFER 0
+  glBindBufferBase gl_UNIFORM_BUFFER bufferId $ materialBufferId env
+  idx <- withGLstring "Material" $ glGetUniformBlockIndex (Shader.programId $ program obj)
+  glUniformBlockBinding (Shader.programId (program obj)) idx bufferId
 
   drawElements Triangles (numArrayIndices obj) UnsignedShort (bufferOffset $ indicesOffset obj) 
 
